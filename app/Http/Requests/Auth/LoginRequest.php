@@ -50,6 +50,19 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // -- REGLA PARA EL PANEL WEB --
+        $user = Auth::user();
+        $rol = trim($user->role);
+
+        if ($rol !== 'Administrador' && $rol !== 'Supervisor') {
+            Auth::logout(); // Lo sacamos porque no tiene permiso
+
+            throw ValidationException::withMessages([
+                // Los corchetes nos dejarán ver si hay espacios raros o si está vacío
+                'email' => "Acceso denegado. Tu rol es: [{$rol}]",
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

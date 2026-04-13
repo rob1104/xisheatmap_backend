@@ -3,6 +3,12 @@ import laravel from 'laravel-vite-plugin';
 import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
+    server: {
+        host: '0.0.0.0',
+        hmr: {
+            host: '192.168.1.51', // Le decimos a Vite tu IP exacta
+        },
+    },
     plugins: [
         laravel({
             input: 'resources/js/app.js',

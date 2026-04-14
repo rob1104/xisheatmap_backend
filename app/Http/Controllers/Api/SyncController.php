@@ -41,7 +41,9 @@ class SyncController extends Controller
      */
     public function sync(Request $request)
     {
-        // Validamos que la app nos mande un array llamado 'records'
+        // Evitamos que PHP cancele la petición si hay muchos registros por el sleep(1)
+        set_time_limit(0);
+
         $request->validate([
             'records' => 'required|array',
             'records.*.clave_elector' => 'required|string|size:18',
@@ -49,20 +51,58 @@ class SyncController extends Controller
             'records.*.colonia' => 'required|string',
         ]);
 
-        $syncedLocalIds = []; // Guardaremos los IDs locales de SQLite para decirle a la app cuáles borrar
+        $syncedLocalIds = [];
         $errors = [];
 
         foreach ($request->records as $recordData) {
             try {
-                // El updateOrCreate busca por la clave de elector.
-                // Si existe, lo actualiza (por si el capturista corrigió un error ortográfico en su app).
-                // Si no existe, lo crea nuevo.
+                $lat = null;
+                $lon = null;
+
+                // Construimos la dirección siempre, ignorando cualquier dato GPS del móvil
+                $direccionParts = array_filter([
+                    $recordData['calle_numero'] ?? null,
+                    $recordData['colonia'] ?? null,
+                    $recordData['municipio'] ?? 'VICTORIA',
+                    $recordData['estado'] ?? 'TAMPS',
+                    $recordData['codigo_postal'] ?? null
+                ]);
+
+                $direccionConsulta = implode(', ', $direccionParts);
+
+                // Iniciamos la triangulación con OpenStreetMap
+                if (!empty($direccionConsulta)) {
+                    try {
+                        // Pausa estricta de 1 segundo para cumplir las reglas de uso gratuito
+                        sleep(1);
+
+                        $response = \Illuminate\Support\Facades\Http::withHeaders([
+                            'User-Agent' => 'XisHeatMap_Sync_Service (rescamilla@xis.mx)'
+                        ])->get('https://nominatim.openstreetmap.org/search', [
+                            'q' => $direccionConsulta,
+                            'format' => 'json',
+                            'limit' => 1
+                        ]);
+
+                        // Si OSM encuentra la dirección, extraemos las coordenadas
+                        if ($response->successful() && !empty($response->json())) {
+                            $osmData = $response->json()[0];
+                            $lat = $osmData['lat'];
+                            $lon = $osmData['lon'];
+                        }
+                    } catch (\Exception $e) {
+                        // Si falla el servidor de mapas, anotamos en el log pero no detenemos la sincronización
+                        \Illuminate\Support\Facades\Log::warning("Fallo geocodificación para: {$direccionConsulta}");
+                    }
+                }
+
+                // Guardamos o actualizamos el expediente en la base de datos
                 $ine = IneRecord::updateOrCreate(
                     [
                         'clave_elector' => $recordData['clave_elector']
                     ],
                     [
-                        'user_id'          => $request->user()->id, // Quien está logueado mandando el dato
+                        'user_id'          => $request->user()->id,
                         'curp'             => $recordData['curp'] ?? null,
                         'ocr_numero'       => $recordData['ocr_numero'] ?? null,
                         'nombre'           => $recordData['nombre'],
@@ -77,27 +117,28 @@ class SyncController extends Controller
                         'estado'           => $recordData['estado'] ?? 'TAMPS',
                         'seccion'          => $recordData['seccion'],
                         'vigencia'         => $recordData['vigencia'] ?? null,
-                        'latitud'          => $recordData['latitud'] ?? null,
-                        'longitud'         => $recordData['longitud'] ?? null,
+
+                        // Guardamos las coordenadas calculadas (o nulo si la calle no existía en el mapa)
+                        'latitud'          => $lat,
+                        'longitud'         => $lon,
+
                         'capturado_en'     => $recordData['capturado_en'] ?? now(),
                     ]
                 );
 
-                // Si la app móvil mandó su ID local (ej. el id de SQLite), lo guardamos en la lista de éxito
+                // Confirmamos a la app móvil que este registro ya está a salvo
                 if (isset($recordData['id_local'])) {
                     $syncedLocalIds[] = $recordData['id_local'];
                 }
 
             } catch (\Exception $e) {
-                // Si falla un registro, no detenemos todo el lote, solo lo anotamos en los errores.
                 $errors[] = [
-                    'clave_elector' => $recordData['clave_elector'],
+                    'clave_elector' => $recordData['clave_elector'] ?? 'Desconocida',
                     'error' => 'Error al guardar: ' . $e->getMessage()
                 ];
             }
         }
 
-        // Le respondemos a la app móvil con lo que salió bien y lo que salió mal
         return response()->json([
             'message' => 'Lote procesado',
             'synced_ids' => $syncedLocalIds,

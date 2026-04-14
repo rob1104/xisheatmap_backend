@@ -45,6 +45,22 @@ class LoginRequest extends FormRequest
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
+            // --- SPATIE: Registrar Login Fallido ---
+            $userAgent = $this->userAgent();
+            $isMobile = preg_match('/Mobile|Android|BlackBerry|IEMobile|Opera Mini/i', $userAgent) ? 'Móvil' : 'PC';
+
+            activity()
+                ->event('alerta_seguridad') // Etiqueta especial para filtrarlos después
+                ->withProperties([
+                    'email_intentado' => $this->input('email'),
+                    'ip' => $this->ip(),
+                    'dispositivo' => $isMobile,
+                    'navegador' => $userAgent,
+                    'razon' => 'Credenciales incorrectas'
+                ])
+                ->log('Intento de inicio de sesión fallido');
+            // ---------------------------------------
+
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
             ]);

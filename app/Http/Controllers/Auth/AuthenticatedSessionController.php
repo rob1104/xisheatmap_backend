@@ -33,6 +33,22 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // --- Extraer información del dispositivo ---
+        $userAgent = $request->userAgent();
+        // Expresión regular sencilla para detectar si es un dispositivo móvil
+        $isMobile = preg_match('/Mobile|Android|BlackBerry|IEMobile|Opera Mini/i', $userAgent) ? 'Móvil' : 'PC';
+
+        // --- SPATIE: Registrar Login Exitoso Detallado ---
+        activity()
+            ->causedBy($request->user())
+            ->withProperties([
+                'ip' => $request->ip(),
+                'dispositivo' => $isMobile,
+                'navegador' => $userAgent
+            ])
+            ->log('Inició sesión exitosamente');
+        // -------------------------------------------------
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
@@ -42,6 +58,12 @@ class AuthenticatedSessionController extends Controller
     public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();
+
+        if ($request->user()) {
+            activity()
+                ->causedBy($request->user())
+                ->log('Logout');
+        }
 
         $request->session()->invalidate();
 

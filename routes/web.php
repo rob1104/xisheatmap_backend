@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\IneRecordController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\CheckAdminAccess;
 use Illuminate\Foundation\Application;
@@ -27,11 +28,13 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::get('/expedientes/foto/{id}/{tipo}', [IneRecordController::class, 'showPhoto'])
         ->name('expedientes.foto');
 
+    Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
+
     Route::get('/usuarios', [UserController::class, 'index'])->name('usuarios.index');
     Route::post('/usuarios', [UserController::class, 'store'])->name('usuarios.store');
     Route::put('/usuarios/{user}', [UserController::class, 'update'])->name('usuarios.update');
     Route::delete('/usuarios/{user}', [UserController::class, 'destroy'])->name('usuarios.destroy');
-    // Route::get('/mapa-calor', ...
+    // Route::get('/mapa-cal397G1dsCor', ...
 
 
     // ---------------------------------------------------

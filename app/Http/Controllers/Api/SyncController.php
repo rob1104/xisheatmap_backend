@@ -7,6 +7,9 @@ use App\Models\IneRecord;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class SyncController extends Controller
 {
@@ -37,35 +40,108 @@ class SyncController extends Controller
     }
 
     /**
-     * Recibe un array de registros locales y los inserta/actualiza en MariaDB.
+     * Recibe un array de registros locales, calcula coordenadas con Google y los guarda.
      */
     public function sync(Request $request)
     {
-        // Validamos que la app nos mande un array llamado 'records'
+        // Evitamos el timeout si llegan muchos registros de golpe
+        set_time_limit(0);
+
+        // Validamos solo la estructura principal
         $request->validate([
             'records' => 'required|array',
-            'records.*.clave_elector' => 'required|string|size:18',
-            'records.*.seccion' => 'required|string',
-            'records.*.colonia' => 'required|string',
         ]);
 
-        $syncedLocalIds = []; // Guardaremos los IDs locales de SQLite para decirle a la app cuáles borrar
+        $syncedLocalIds = [];
         $errors = [];
 
-        foreach ($request->records as $recordData) {
+        foreach ($request->records as $index => $recordData) {
             try {
-                // El updateOrCreate busca por la clave de elector.
-                // Si existe, lo actualiza. Si no existe, lo crea nuevo.
+                // 1. VALIDACIÓN INDIVIDUAL (Para no romper el lote completo)
+                $validator = Validator::make($recordData, [
+                    'clave_elector' => 'required|string|size:18',
+                    'seccion'       => 'required|string',
+                    'colonia'       => 'required|string',
+                    // Puedes agregar más reglas si algún campo es estrictamente obligatorio
+                ]);
+
+                if ($validator->fails()) {
+                    $errors[] = [
+                        'clave_elector' => $recordData['clave_elector'] ?? "Registro #{$index}",
+                        'id_local' => $recordData['id_local'] ?? null,
+                        'tipo_error' => 'Validación',
+                        'detalles' => $validator->errors()->all()
+                    ];
+                    continue; // Saltamos al siguiente registro
+                }
+
+                // 2. GEOLOCALIZACIÓN CON GOOGLE MAPS API
+                $lat = null;
+                $lon = null;
+
+                $direccionParts = array_filter([
+                    $recordData['calle_numero'] ?? null,
+                    $recordData['colonia'] ?? null,
+                    $recordData['codigo_postal'] ?? null,
+                    $recordData['municipio'] ?? 'VICTORIA',
+                    $recordData['estado'] ?? 'TAMPS'
+                ]);
+
+                $direccionConsulta = implode(', ', $direccionParts);
+
+                // Forzamos la lectura de la llave directamente del archivo .env por si la caché falla
+                $apiKey = $_ENV['GOOGLE_MAPS_API_KEY'] ?? config('services.google_maps.api_key');
+
+                if (!empty($direccionConsulta) && !empty($apiKey)) {
+                    try {
+                        $response = Http::get('https://maps.googleapis.com/maps/api/geocode/json', [
+                            'address' => $direccionConsulta,
+                            'components' => 'country:MX',
+                            'key' => $apiKey
+                        ]);
+
+                        $data = $response->json();
+
+                        if ($response->successful() && isset($data['status'])) {
+                            if ($data['status'] === 'OK') {
+                                $location = $data['results'][0]['geometry']['location'];
+                                $lat = $location['lat'];
+                                $lon = $location['lng'];
+                            } else {
+                                // Aquí atrapamos el error exacto de Google
+                                $errorMessage = $data['error_message'] ?? 'Sin detalle';
+                                Log::warning("API Google falló. Status: {$data['status']} | Mensaje: {$errorMessage} | Dirección: {$direccionConsulta}");
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Fallo de red conectando a Google Maps: " . $e->getMessage());
+                    }
+                } else {
+                    Log::error("No se encontró la llave GOOGLE_MAPS_API_KEY en el archivo .env");
+                }
+
+                if (empty($lat) || empty($lon)) {
+                    $errors[] = [
+                        'clave_elector' => $recordData['clave_elector'],
+                        'id_local' => $recordData['id_local'] ?? null,
+                        'tipo_error' => 'Geolocalización',
+                        'detalles' => ['Dirección no encontrada. Google no pudo ubicar este domicilio. Por favor, edita la calle o colonia manualmente.']
+                    ];
+                    // IMPORTANTE: Hacemos 'continue' para NO guardar en la DB y que el ID no se marque como sincronizado
+                    continue;
+                }
+
+                // 3. GUARDADO EN BASE DE DATOS
                 $ine = IneRecord::updateOrCreate(
                     [
                         'clave_elector' => $recordData['clave_elector']
                     ],
                     [
-                        'user_id'          => $request->user()->id, // Quien está logueado mandando el dato
+                        'user_id'          => $request->user()->id,
                         'curp'             => $recordData['curp'] ?? null,
                         'ocr_numero'       => $recordData['ocr_numero'] ?? null,
-                        'nombre'           => $recordData['nombre'],
-                        'apellido_paterno' => $recordData['apellido_paterno'],
+                        'nombre'           => $recordData['nombre'] ?? 'SIN NOMBRE',
+                        'apellido_paterno' => $recordData['apellido_paterno'] ?? '',
                         'apellido_materno' => $recordData['apellido_materno'] ?? null,
                         'fecha_nacimiento' => $recordData['fecha_nacimiento'] ?? null,
                         'sexo'             => $recordData['sexo'] ?? null,
@@ -77,33 +153,34 @@ class SyncController extends Controller
                         'seccion'          => $recordData['seccion'],
                         'vigencia'         => $recordData['vigencia'] ?? null,
 
-                        // Recibe directamente los datos de la app móvil (GPS)
-                        'latitud'          => $recordData['latitud'] ?? null,
-                        'longitud'         => $recordData['longitud'] ?? null,
+                        // Guardamos los datos de la API de Google
+                        'latitud'          => $lat,
+                        'longitud'         => $lon,
 
                         'capturado_en'     => $recordData['capturado_en'] ?? now(),
                     ]
                 );
 
-                // Si la app móvil mandó su ID local (ej. el id de SQLite), lo guardamos en la lista de éxito
+                // Confirmamos a la app móvil
                 if (isset($recordData['id_local'])) {
                     $syncedLocalIds[] = $recordData['id_local'];
                 }
 
             } catch (\Exception $e) {
-                // Si falla un registro, no detenemos todo el lote, solo lo anotamos en los errores.
                 $errors[] = [
-                    'clave_elector' => $recordData['clave_elector'],
-                    'error' => 'Error al guardar: ' . $e->getMessage()
+                    'clave_elector' => $recordData['clave_elector'] ?? "Registro #{$index}",
+                    'id_local' => $recordData['id_local'] ?? null,
+                    'tipo_error' => 'Sistema',
+                    'detalles' => [$e->getMessage()]
                 ];
             }
         }
 
-        // Le respondemos a la app móvil con lo que salió bien y lo que salió mal
         return response()->json([
-            'message' => 'Lote procesado',
+            'message' => count($errors) > 0 ? 'Sincronización con observaciones' : 'Lote procesado',
             'synced_ids' => $syncedLocalIds,
-            'errors' => $errors
+            'errors' => $errors,
+            'has_errors' => count($errors) > 0
         ]);
     }
 
@@ -112,25 +189,17 @@ class SyncController extends Controller
      */
     public function syncPhoto(Request $request)
     {
-        // 1. Validamos que venga la foto, el tipo y que el registro ya exista
         $request->validate([
             'clave_elector' => 'required|string|exists:ine_records,clave_elector',
-            'foto'          => 'required|image|mimes:jpeg,png,jpg,webp|max:5120', // Max 5MB por foto
+            'foto'          => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
             'tipo'          => 'required|in:frente,reverso',
         ]);
 
-        // 2. Buscamos el registro en la base de datos
         $ine = IneRecord::where('clave_elector', $request->clave_elector)->first();
-
-        // 3. Guardamos el archivo en una CARPETA PRIVADA.
-        // Se guardará en: storage/app/ines/{clave_elector}/nombre_aleatorio.jpg
-        // No usamos el disco 'public' por seguridad.
         $folderPath = 'ines/' . $ine->clave_elector;
         $path = $request->file('foto')->store($folderPath, 'local');
 
-        // 4. Actualizamos el campo correspondiente en la base de datos
         if ($request->tipo === 'frente') {
-            // Si ya había una foto antes (ej. el usuario la volvió a tomar), podemos borrar la vieja
             if ($ine->foto_frente_path && \Storage::disk('local')->exists($ine->foto_frente_path)) {
                 \Storage::disk('local')->delete($ine->foto_frente_path);
             }

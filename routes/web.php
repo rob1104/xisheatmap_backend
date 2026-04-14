@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\HeatMapController;
 use App\Http\Controllers\Admin\IneRecordController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\LogController;
@@ -34,7 +35,7 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::post('/usuarios', [UserController::class, 'store'])->name('usuarios.store');
     Route::put('/usuarios/{user}', [UserController::class, 'update'])->name('usuarios.update');
     Route::delete('/usuarios/{user}', [UserController::class, 'destroy'])->name('usuarios.destroy');
-    // Route::get('/mapa-cal397G1dsCor', ...
+    Route::get('/heatmap', [HeatMapController::class, 'index'])->name('heatmap.index');
 
 
     // ---------------------------------------------------

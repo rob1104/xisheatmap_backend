@@ -131,6 +131,11 @@ class SyncController extends Controller
                     continue;
                 }
 
+                $fechaLimpia = isset($recordData['fecha_nacimiento'])
+                    ? str_replace('/', '-', $recordData['fecha_nacimiento'])
+                    : null;
+                $fechaFinal = $fechaLimpia ? date('Y-m-d', strtotime($fechaLimpia)) : null;
+
                 // 3. GUARDADO EN BASE DE DATOS
                 $ine = IneRecord::updateOrCreate(
                     [
@@ -143,7 +148,7 @@ class SyncController extends Controller
                         'nombre'           => $recordData['nombre'] ?? 'SIN NOMBRE',
                         'apellido_paterno' => $recordData['apellido_paterno'] ?? '',
                         'apellido_materno' => $recordData['apellido_materno'] ?? null,
-                        'fecha_nacimiento' => $recordData['fecha_nacimiento'] ?? null,
+                        'fecha_nacimiento' => $fechaFinal,
                         'sexo'             => $recordData['sexo'] ?? null,
                         'calle_numero'     => $recordData['calle_numero'] ?? null,
                         'colonia'          => $recordData['colonia'],

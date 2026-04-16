@@ -72,8 +72,9 @@ let heatmap = null
 let heatMapData = [] // Lo sacamos aquí para que el evento del mapa pueda leerlo
 
 const initMap = () => {
-    let centerLat = 25.8690 // Matamoros por defecto
-    let centerLng = -97.5027
+    //Centro por defecto: Ciudad Victoria, Tamaulipas (Plaza Juárez)
+    let centerLat = 23.7369
+    let centerLng = -99.1411
 
     if (props.coordenadas.length > 0) {
         centerLat = parseFloat(props.coordenadas[0].latitud)

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Faker\Factory as Faker;
 use Carbon\Carbon;
 
-class IneSeeder extends Seeder
+class IneSeeder2 extends Seeder
 {
     public function run(): void
     {

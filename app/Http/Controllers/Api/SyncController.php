@@ -21,12 +21,37 @@ class SyncController extends Controller
         ]);
 
         $user = User::where('email', $request->email)->first();
-
+        $userAgent = $request->userAgent();
         if(!$user || !Hash::check($request->password, $user->password)) {
+            activity()
+                ->event('alerta_seguridad') // Etiqueta especial para filtrarlos después
+                ->withProperties([
+                    'email_intentado' => $request->email,
+                    'ip' => $request->ip(),
+                    'dispositivo' => 'App Android',
+                    'navegador' => $userAgent,
+                    'razon' => 'Credenciales incorrectas'
+                ])
+                ->log('Intento de inicio de sesión fallido');
             return response()->json(['message' => 'Credenciales incorrectas'], 401);
         }
 
         $token = $user->createToken('quasar_app')->plainTextToken;
+
+        // --- Extraer información del dispositivo ---
+
+        // Expresión regular sencilla para detectar si es un dispositivo móvil
+
+
+        // --- SPATIE: Registrar Login Exitoso Detallado ---
+        activity()
+            ->causedBy($request->user())
+            ->withProperties([
+                'ip' => $request->ip(),
+                'dispositivo' => 'App Android',
+                'navegador' => $userAgent
+            ])
+            ->log('Inició sesión exitosamente');
 
         return response()->json([
             'token' => $token,

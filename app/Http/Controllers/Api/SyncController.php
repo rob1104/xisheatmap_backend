@@ -45,7 +45,7 @@ class SyncController extends Controller
 
         // --- SPATIE: Registrar Login Exitoso Detallado ---
         activity()
-            ->causedBy(\Auth::user()->name)
+            ->causedBy($request->user())
             ->withProperties([
                 'ip' => $request->ip(),
                 'dispositivo' => 'App Android',

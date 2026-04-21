@@ -29,9 +29,16 @@
                 </div>
 
                 <div class="flex gap-2 w-full md:w-auto justify-end">
-                    <button @click="toggleHeatmap" class="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-semibold transition-colors">
-                        Capa
+                    <button @click="toggleHeatmap" :class="viendoSimpatizantes ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white border-gray-300 text-gray-700'" class="px-4 py-2 border rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+                        <div :class="viendoSimpatizantes ? 'bg-indigo-500 animate-pulse' : 'bg-gray-300'" class="w-2 h-2 rounded-full"></div>
+                        Simpatizantes
                     </button>
+
+                    <button @click="toggleBrigadistas" :class="viendoBrigadistas ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white border-gray-300 text-gray-700'" class="px-4 py-2 border rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+                        <div :class="viendoBrigadistas ? 'bg-green-500 animate-pulse' : 'bg-gray-300'" class="w-2 h-2 rounded-full"></div>
+                        Brigadistas
+                    </button>
+
                     <button @click="changeRadius" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-semibold transition-colors">
                         Radio
                     </button>
@@ -55,6 +62,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
+import axios from 'axios'
 
 const props = defineProps({
     coordenadas: Array,
@@ -64,15 +72,20 @@ const props = defineProps({
 const mapContainer = ref(null)
 const cargando = ref(true)
 
-// Variable reactiva para el contador dinámico (Inicia con el total)
+// Variables reactivas
 const puntosVisibles = ref(props.coordenadas.length)
+const viendoSimpatizantes = ref(true)
+const viendoBrigadistas = ref(false)
 
 let map = null
 let heatmap = null
-let heatMapData = [] // Lo sacamos aquí para que el evento del mapa pueda leerlo
+let heatMapData = []
+
+// Variables para brigadistas
+let marcadoresBrigadistas = {}
+let intervaloRastreo = null
 
 const initMap = () => {
-    //Centro por defecto: Ciudad Victoria, Tamaulipas (Plaza Juárez)
     let centerLat = 23.7369
     let centerLng = -99.1411
 
@@ -85,11 +98,9 @@ const initMap = () => {
         zoom: 13,
         center: { lat: centerLat, lng: centerLng },
         mapTypeId: 'roadmap',
-        // Estilos opcionales (puedes borrarlos si quieres el mapa de colores estándar)
-
+        mapId: 'DEMO_MAP_ID' // Requerido para Advanced Markers
     })
 
-    // Transformamos los datos
     heatMapData = props.coordenadas.map(coord => {
         return new window.google.maps.LatLng(
             parseFloat(coord.latitud),
@@ -97,7 +108,6 @@ const initMap = () => {
         )
     })
 
-    // Capa del Mapa de Calor
     heatmap = new window.google.maps.visualization.HeatmapLayer({
         data: heatMapData,
         map: map,
@@ -105,55 +115,93 @@ const initMap = () => {
         opacity: 0.8
     })
 
-    // Centrado automático inicial
     if (props.coordenadas.length > 1) {
         const bounds = new window.google.maps.LatLngBounds()
         heatMapData.forEach(point => bounds.extend(point))
         map.fitBounds(bounds)
     }
 
-    // --- MAGIA: EL ESCÁNER DINÁMICO ---
-    // Usamos el evento 'idle' (cuando el mapa deja de moverse) para no saturar el navegador
     map.addListener('idle', () => {
         const bounds = map.getBounds()
         if (!bounds) return
-
         let count = 0
-        // Escaneamos cuántos puntos caen dentro de la pantalla actual
         heatMapData.forEach(point => {
-            if (bounds.contains(point)) {
-                count++
-            }
+            if (bounds.contains(point)) count++
         })
-
         puntosVisibles.value = count
     })
-    // ----------------------------------
 
     cargando.value = false
 }
 
-onMounted(() => {
-    if (window.google && window.google.maps) {
-        initMap()
-        return
+const obtenerBrigadistas = async () => {
+    if (!viendoBrigadistas.value) return;
+
+    try {
+        const response = await axios.get('/rastreo-brigadistas');
+        const activosEnCalle = response.data;
+
+        activosEnCalle.forEach(brigadista => {
+            const posicion = new window.google.maps.LatLng(brigadista.lat, brigadista.lng);
+
+            if (marcadoresBrigadistas[brigadista.id]) {
+                // Actualizamos posición usando la nueva API
+                marcadoresBrigadistas[brigadista.id].position = posicion;
+            } else {
+                // Creamos el marcador avanzado con HTML y Tailwind
+                const pinElement = document.createElement('div');
+                pinElement.className = 'relative flex flex-col items-center justify-center cursor-pointer';
+                pinElement.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#10B981" stroke="#064E3B" stroke-width="1" class="w-10 h-10 drop-shadow-lg">
+                        <path d="M12 2.016q2.906 0 4.945 2.039t2.039 4.945q0 1.453-0.727 3.328t-1.758 3.516-2.039 3.070-1.711 2.273l-0.75 0.797q-0.281-0.328-0.75-0.867t-1.688-2.156-2.133-3.141-1.664-3.445-0.75-3.375q0-2.906 2.039-4.945t4.945-2.039zM10.453 14.016l6.563-6.609-1.406-1.406-5.156 5.203-2.063-2.109-1.406 1.406z"/>
+                    </svg>
+                    <div class="absolute top-10 bg-white px-2 py-1 rounded shadow-md border border-gray-200 text-sm font-bold text-emerald-900 whitespace-nowrap z-10">
+                        ${brigadista.name}
+                    </div>
+                `;
+
+                const marker = new window.google.maps.marker.AdvancedMarkerElement({
+                    position: posicion,
+                    map: map,
+                    content: pinElement,
+                    title: `Última conexión: ${brigadista.ultima_conexion}`
+                });
+
+                marcadoresBrigadistas[brigadista.id] = marker;
+            }
+        });
+
+        // Limpiar desconectados
+        const idsActivos = activosEnCalle.map(b => b.id);
+        Object.keys(marcadoresBrigadistas).forEach(id => {
+            if (!idsActivos.includes(parseInt(id))) {
+                marcadoresBrigadistas[id].map = null; // En AdvancedMarkers se ocultan así
+                delete marcadoresBrigadistas[id];
+            }
+        });
+
+    } catch (error) {
+        console.error("Error al obtener la ubicación de brigadistas:", error);
     }
+}
 
-    window.initGoogleMap = initMap
-    const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${props.googleApiKey}&libraries=visualization&callback=initGoogleMap`
-    script.async = true
-    script.defer = true
-    document.head.appendChild(script)
-})
+const toggleBrigadistas = () => {
+    viendoBrigadistas.value = !viendoBrigadistas.value;
 
-onUnmounted(() => {
-    delete window.initGoogleMap
-})
+    if (viendoBrigadistas.value) {
+        obtenerBrigadistas();
+        intervaloRastreo = setInterval(obtenerBrigadistas, 10000);
+    } else {
+        clearInterval(intervaloRastreo);
+        Object.values(marcadoresBrigadistas).forEach(marker => marker.map = null);
+        marcadoresBrigadistas = {};
+    }
+}
 
 const toggleHeatmap = () => {
     if (heatmap) {
         heatmap.setMap(heatmap.getMap() ? null : map)
+        viendoSimpatizantes.value = heatmap.getMap() !== null
     }
 }
 
@@ -163,4 +211,24 @@ const changeRadius = () => {
         heatmap.set('radius', currentRadius === 25 ? 50 : 25)
     }
 }
+
+onMounted(() => {
+    if (window.google && window.google.maps) {
+        initMap()
+        return
+    }
+
+    // Un solo montaje del script con las librerías correctas
+    window.initGoogleMap = initMap
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${props.googleApiKey}&libraries=visualization,marker&callback=initGoogleMap`
+    script.async = true
+    script.defer = true
+    document.head.appendChild(script)
+})
+
+onUnmounted(() => {
+    delete window.initGoogleMap
+    if (intervaloRastreo) clearInterval(intervaloRastreo)
+})
 </script>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\Api\SyncController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +17,11 @@ Route::middleware('auth:sanctum')->group(function () {
         //Endpoint principal para recibir el lote de credenciales
     Route::post('/sync', [SyncController::class, 'sync']);
     Route::post('/sync-photo', [SyncController::class, 'syncPhoto']);
+
+    // La app envía (POST)
+    Route::post('/ubicacion-brigadista', [TrackingController::class, 'reportarUbicacion']);
+
+
 });
 
 

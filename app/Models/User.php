@@ -13,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
-#[Fillable(['name', 'email', 'password', 'parent_id', 'role'])]
+#[Fillable(['name', 'email', 'password', 'parent_id', 'role', 'latitud_actual','longitud_actual','ultima_conexion_app'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {

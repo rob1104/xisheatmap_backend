@@ -33,6 +33,8 @@ class IneRecord extends Model
         'foto_frente_path',
         'foto_reverso_path',
         'capturado_en',
+        'telefono',
+        'correo'
     ];
 
     protected function casts(): array

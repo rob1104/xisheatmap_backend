@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\HeatMapController;
 use App\Http\Controllers\Admin\IneRecordController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\LogController;
+use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\CheckAdminAccess;
 use Illuminate\Foundation\Application;
@@ -44,6 +45,9 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // El mapa web consulta (GET) - Esta es la que pegamos en tu Vue hace rato
+    Route::get('/rastreo-brigadistas', [TrackingController::class, 'obtenerActivos']);
 
 });
 

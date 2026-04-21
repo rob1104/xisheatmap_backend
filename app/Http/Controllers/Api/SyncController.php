@@ -87,7 +87,8 @@ class SyncController extends Controller
                     'clave_elector' => 'required|string|size:18',
                     'seccion'       => 'required|string',
                     'colonia'       => 'required|string',
-                    // Puedes agregar más reglas si algún campo es estrictamente obligatorio
+                    'telefono'      => 'required|string',
+                    'correo'        => 'required|email'
                 ]);
 
                 if ($validator->fails()) {
@@ -182,6 +183,8 @@ class SyncController extends Controller
                         'estado'           => $recordData['estado'] ?? 'TAMPS',
                         'seccion'          => $recordData['seccion'],
                         'vigencia'         => $recordData['vigencia'] ?? null,
+                        'telefono'         => $recordData['telefono'],
+                        'correo'           => $recordData['correo'],
 
                         // Guardamos los datos de la API de Google
                         'latitud'          => $lat,

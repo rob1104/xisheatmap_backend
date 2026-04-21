@@ -47,7 +47,7 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // El mapa web consulta (GET) - Esta es la que pegamos en tu Vue hace rato
-    Route::get('/rastreo-brigadistas', [TrackingController::class, 'obtenerActivos']);
+    Route::get('/rastreo-brigadistas', [TrackingController::class, 'obtenerActivos'])->name('rastreo-brigadistas');
 
 });
 

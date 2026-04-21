@@ -138,7 +138,7 @@ const obtenerBrigadistas = async () => {
     if (!viendoBrigadistas.value) return;
 
     try {
-        const response = await axios.get('/rastreo-brigadistas');
+        const response = await axios.get(route('rastreo-brigadistas'));
         const activosEnCalle = response.data;
 
         activosEnCalle.forEach(brigadista => {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\IneSincronizada;
 use App\Http\Controllers\Controller;
 use App\Models\IneRecord;
 use App\Models\User;
@@ -193,6 +194,10 @@ class SyncController extends Controller
                         'capturado_en'     => $recordData['capturado_en'] ?? now(),
                     ]
                 );
+
+                if ($ine && $ine->correo) {
+                    event(new IneSincronizada($ine));
+                }
 
                 // Confirmamos a la app móvil
                 if (isset($recordData['id_local'])) {

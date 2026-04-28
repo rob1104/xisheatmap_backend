@@ -77,7 +77,7 @@ class GenerarTarjetaDescuento implements ShouldQueue
             imagecopy($baseImage, $qrImage, 20, 20, 0, 0, 130, 130);
 
             // D) Preparar la escritura de textos
-            $fontPath = public_path('fonts/fuente.ttf');
+            $fontPath = public_path('fonts/arial.ttf.ttf');
             $folioText = 'FOLIO: ' . $card->folio_formateado;
             $nombreText = mb_strtoupper(trim($ine->nombre . ' ' . $ine->apellido_paterno), 'UTF-8');
 

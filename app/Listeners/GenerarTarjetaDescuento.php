@@ -53,8 +53,8 @@ class GenerarTarjetaDescuento implements ShouldQueue
             // Actualizamos el registro con el JSON real
             $card->update(['qr_data_json' => $qrData]);
 
-            // 4. GENERAR LA IMAGEN CON PHP NATIVO (INTERVENTION IMAGE V3)
-            Log::info("Iniciando generación PHP de imagen para tarjeta ID: {$card->id}");
+            // 4. GENERAR LA IMAGEN CON PHP NATIVO (CERO LIBRERÍAS EXTERNAS)
+            Log::info("Iniciando generación GD Nativo para tarjeta ID: {$card->id}");
 
             Storage::disk('public')->makeDirectory('cards');
 
@@ -64,44 +64,55 @@ class GenerarTarjetaDescuento implements ShouldQueue
             $tempQrPath = storage_path("app/public/temp_qr_{$card->id}.png");
             file_put_contents($tempQrPath, $qrImageBinary);
 
-            // B) Inicializar el manejador (Sintaxis V3 correcta)
-            $manager = new ImageManager(new Driver());
+            // B) Cargar imágenes en la memoria de PHP
+            $baseImage = imagecreatefrompng(public_path('templates/tarjeta_base.png'));
+            $qrImage = imagecreatefrompng($tempQrPath);
 
-            // C) Cargar tu plantilla base
-            $image = $manager->read(public_path('templates/tarjeta_base.png'));
+            // Respetar transparencias
+            imagealphablending($baseImage, true);
+            imagesavealpha($baseImage, true);
 
-            // D) Pegar el QR
-            $image->place($tempQrPath, 'top-left', 20, 20);
+            // C) Pegar el QR (Destino, Origen, dst_x, dst_y, src_x, src_y, ancho, alto)
+            // Lo ponemos a 20px de la izquierda y 20px de arriba
+            imagecopy($baseImage, $qrImage, 20, 20, 0, 0, 130, 130);
 
-            // E) Escribir los textos
+            // D) Preparar la escritura de textos
             $fontPath = public_path('fonts/fuente.ttf');
-            $folio = $card->folio_formateado;
-            $nombre = trim($ine->nombre . ' ' . $ine->apellido_paterno);
+            $folioText = 'FOLIO: ' . $card->folio_formateado;
+            $nombreText = mb_strtoupper(trim($ine->nombre . ' ' . $ine->apellido_paterno), 'UTF-8');
 
-            // Escribir el Folio
-            $image->text('FOLIO: ' . $folio, 650, 60, function($font) use ($fontPath) {
-                $font->file($fontPath);
-                $font->size(28);
-                $font->color('#000000');
-                $font->align('right');
-            });
+            // Crear colores (RGB)
+            $colorNegro = imagecolorallocate($baseImage, 0, 0, 0);
+            $colorBlanco = imagecolorallocate($baseImage, 255, 255, 255);
 
-            // Escribir el Nombre del Simpatizante
-            $image->text($nombre, 350, 380, function($font) use ($fontPath) {
-                $font->file($fontPath);
-                $font->size(24);
-                $font->color('#FFFFFF');
-                $font->align('center');
-            });
+            // Obtenemos el ancho total de tu plantilla azul para calcular posiciones
+            $imageWidth = imagesx($baseImage);
 
-            // F) Guardar la imagen final
+            // --- ESCRIBIR FOLIO (Alineado a la derecha) ---
+            // Calculamos cuánto mide el texto para empujarlo a la orilla
+            $bboxFolio = imagettfbbox(20, 0, $fontPath, $folioText);
+            $folioWidth = $bboxFolio[2] - $bboxFolio[0];
+            $xFolio = $imageWidth - $folioWidth - 30; // 30px de margen derecho
+
+            // imagettftext(imagen, tamaño_fuente, ángulo, x, y, color, fuente, texto)
+            imagettftext($baseImage, 20, 0, $xFolio, 50, $colorNegro, $fontPath, $folioText);
+
+            // --- ESCRIBIR NOMBRE (Centrado perfectamente) ---
+            $bboxNombre = imagettfbbox(24, 0, $fontPath, $nombreText);
+            $nombreWidth = $bboxNombre[2] - $bboxNombre[0];
+            $xNombre = ($imageWidth / 2) - ($nombreWidth / 2);
+
+            // Y=380 es un estimado hacia abajo de la tarjeta, ajústalo si queda muy arriba o abajo
+            imagettftext($baseImage, 24, 0, $xNombre, 380, $colorBlanco, $fontPath, $nombreText);
+
+            // E) Guardar la imagen final
             $filename = "cards/tarjeta_{$card->folio_formateado}.png";
             $storagePath = storage_path("app/public/{$filename}");
+            imagepng($baseImage, $storagePath);
 
-            // En V3, toPng() asegura que se guarde correctamente
-            $image->toPng()->save($storagePath);
-
-            // Limpiar: Borrar el QR temporal
+            // F) Limpiar la memoria del servidor y borrar temporales
+            imagedestroy($baseImage);
+            imagedestroy($qrImage);
             @unlink($tempQrPath);
 
             // 5. Actualizar ruta en BD
@@ -111,7 +122,7 @@ class GenerarTarjetaDescuento implements ShouldQueue
             Mail::to($card->email_envio)->send(new TarjetaDescuentoEnviada($card));
             $card->update(['enviado_por_correo' => true]);
 
-            Log::info("Tarjeta generada exitosamente en PHP: {$filename}");
+            Log::info("Tarjeta generada exitosamente con GD Nativo: {$filename}");
 
         } catch (\Exception $e) {
             Log::error("Error generando tarjeta de descuento para INE ID {$ine->id}: " . $e->getMessage());

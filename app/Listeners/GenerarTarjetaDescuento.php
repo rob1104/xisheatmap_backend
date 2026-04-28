@@ -113,10 +113,7 @@ class GenerarTarjetaDescuento implements ShouldQueue
 
             Log::info("Tarjeta generada exitosamente en PHP: {$filename}");
 
-        } catch (\Exception $e) {
-            Log::error("Error generando tarjeta de descuento para INE ID {$ine->id}: " . $e->getMessage());
-            if(isset($card)) $card->delete();
-        }
+
 
         } catch (\Exception $e) {
             Log::error("Error generando tarjeta de descuento para INE ID {$ine->id}: " . $e->getMessage());

@@ -53,7 +53,7 @@ class GenerarTarjetaDescuento implements ShouldQueue
             // Actualizamos el registro con el JSON real
             $card->update(['qr_data_json' => $qrData]);
 
-            // 4. GENERAR LA IMAGEN CON PHP NATIVO (INTERVENTION IMAGE)
+            // 4. GENERAR LA IMAGEN CON PHP NATIVO (INTERVENTION IMAGE V2)
             Log::info("Iniciando generación PHP de imagen para tarjeta ID: {$card->id}");
 
             // Aseguramos que el directorio de destino exista
@@ -65,37 +65,34 @@ class GenerarTarjetaDescuento implements ShouldQueue
             $tempQrPath = storage_path("app/public/temp_qr_{$card->id}.png");
             file_put_contents($tempQrPath, $qrImageBinary);
 
-            // B) Inicializar el manejador de imágenes
-            $manager = new ImageManager(new Driver());
+            // B) Inicializar el manejador de imágenes (Sintaxis V2)
+            $manager = new \Intervention\Image\ImageManager(['driver' => 'gd']);
 
-            // C) Cargar tu plantilla base (Asegúrate de subir la imagen azul de MESIL a esta ruta)
-            $image = $manager->read(public_path('templates/tarjeta_base.png'));
+            // C) Cargar tu plantilla base (usamos 'make' en lugar de 'read')
+            $image = $manager->make(public_path('templates/tarjeta_base.png'));
 
-            // D) Pegar el QR en la esquina superior izquierda
-            // Los números (20, 20) son la distancia en pixeles desde el borde izquierdo y superior
-            $image->place($tempQrPath, 'top-left', 20, 20);
+            // D) Pegar el QR en la esquina superior izquierda (usamos 'insert' en lugar de 'place')
+            $image->insert($tempQrPath, 'top-left', 20, 20);
 
             // E) Escribir los textos sobre la imagen
-            // Asegúrate de subir tu fuente a esta ruta
             $fontPath = public_path('fonts/fuente.ttf');
 
             $folio = $card->folio_formateado;
             $nombre = trim($ine->nombre . ' ' . $ine->apellido_paterno);
-            $vigencia = 'Válida hasta: ' . $card->fecha_validez_fin->format('d/M/Y');
 
-            // Escribir el Folio (Arriba a la derecha)
+            // Escribir el Folio
             $image->text('FOLIO: ' . $folio, 650, 60, function($font) use ($fontPath) {
                 $font->file($fontPath);
                 $font->size(28);
-                $font->color('#000000'); // Letra negra
-                $font->align('right'); // Alineado a la derecha
+                $font->color('#000000');
+                $font->align('right');
             });
 
-            // Escribir el Nombre del Simpatizante (Abajo en el centro)
+            // Escribir el Nombre del Simpatizante
             $image->text($nombre, 350, 380, function($font) use ($fontPath) {
                 $font->file($fontPath);
                 $font->size(24);
-                $font->color('#FFFFFF'); // Letra blanca
+                $font->color('#FFFFFF');
                 $font->align('center');
             });
 
@@ -104,7 +101,7 @@ class GenerarTarjetaDescuento implements ShouldQueue
             $storagePath = storage_path("app/public/{$filename}");
             $image->save($storagePath);
 
-            // Limpiar: Borrar el QR temporal para no acumular basura
+            // Limpiar: Borrar el QR temporal
             @unlink($tempQrPath);
 
             // 5. Actualizar ruta de imagen en la base de datos
@@ -115,6 +112,11 @@ class GenerarTarjetaDescuento implements ShouldQueue
             $card->update(['enviado_por_correo' => true]);
 
             Log::info("Tarjeta generada exitosamente en PHP: {$filename}");
+
+        } catch (\Exception $e) {
+            Log::error("Error generando tarjeta de descuento para INE ID {$ine->id}: " . $e->getMessage());
+            if(isset($card)) $card->delete();
+        }
 
         } catch (\Exception $e) {
             Log::error("Error generando tarjeta de descuento para INE ID {$ine->id}: " . $e->getMessage());

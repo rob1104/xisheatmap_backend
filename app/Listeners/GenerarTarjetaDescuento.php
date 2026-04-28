@@ -58,9 +58,20 @@ class GenerarTarjetaDescuento implements ShouldQueue
 
             Storage::disk('public')->makeDirectory('cards');
 
-            // A) Generar el QR
+            // --- VARIABLES DE DISEÑO (Ajusta estos números si queda un poco movido) ---
+            $qrSize = 220;         // Tamaño del código QR
+            $qrX = 35;             // Posición X del QR (De izquierda a derecha)
+            $qrY = 35;             // Posición Y del QR (De arriba hacia abajo)
+
+            $yFolio = 85;          // Posición Y (altura) del Folio dentro de su burbuja
+            $centroBurbujaX = 220; // Distancia desde el borde derecho hasta el centro de la burbuja blanca
+
+            $yNombre = 360;        // Altura del nombre (debe quedar sobre 'NEGOCIO AFILIADO')
+            // -------------------------------------------------------------------------
+
+            // A) Generar el QR con el nuevo tamaño
             $qrContent = json_encode($qrData);
-            $qrImageBinary = QrCode::format('png')->size(130)->margin(0)->generate($qrContent);
+            $qrImageBinary = QrCode::format('png')->size($qrSize)->margin(0)->generate($qrContent);
             $tempQrPath = storage_path("app/public/temp_qr_{$card->id}.png");
             file_put_contents($tempQrPath, $qrImageBinary);
 
@@ -68,49 +79,49 @@ class GenerarTarjetaDescuento implements ShouldQueue
             $baseImage = imagecreatefrompng(public_path('templates/tarjeta_base.png'));
             $qrImage = imagecreatefrompng($tempQrPath);
 
-            // Respetar transparencias
             imagealphablending($baseImage, true);
             imagesavealpha($baseImage, true);
 
-            // C) Pegar el QR (Destino, Origen, dst_x, dst_y, src_x, src_y, ancho, alto)
-            // Lo ponemos a 20px de la izquierda y 20px de arriba
-            imagecopy($baseImage, $qrImage, 20, 20, 0, 0, 130, 130);
+            // C) Pegar el QR más grande
+            // imagecopy(destino, origen, dst_x, dst_y, src_x, src_y, ancho, alto)
+            imagecopy($baseImage, $qrImage, $qrX, $qrY, 0, 0, $qrSize, $qrSize);
 
             // D) Preparar la escritura de textos
             $fontPath = public_path('fonts/arial.ttf');
             $folioText = 'FOLIO: ' . $card->folio_formateado;
-            $nombreText = mb_strtoupper(trim($ine->nombre . ' ' . $ine->apellido_paterno), 'UTF-8');
+            // mb_strtoupper asegura que los acentos y eñes se hagan mayúsculas correctamente
+            $nombreText = mb_strtoupper(trim($ine->nombre . ' ' . $ine->apellido_paterno . ' ' . $ine->apellido_materno), 'UTF-8');
 
-            // Crear colores (RGB)
             $colorNegro = imagecolorallocate($baseImage, 0, 0, 0);
             $colorBlanco = imagecolorallocate($baseImage, 255, 255, 255);
 
-            // Obtenemos el ancho total de tu plantilla azul para calcular posiciones
             $imageWidth = imagesx($baseImage);
 
-            // --- ESCRIBIR FOLIO (Alineado a la derecha) ---
-            // Calculamos cuánto mide el texto para empujarlo a la orilla
-            $bboxFolio = imagettfbbox(20, 0, $fontPath, $folioText);
+            // --- ESCRIBIR FOLIO (Centrado en su burbuja derecha) ---
+            $fontSizeFolio = 22;
+            $bboxFolio = imagettfbbox($fontSizeFolio, 0, $fontPath, $folioText);
             $folioWidth = $bboxFolio[2] - $bboxFolio[0];
-            $xFolio = $imageWidth - $folioWidth - 30; // 30px de margen derecho
 
-            // imagettftext(imagen, tamaño_fuente, ángulo, x, y, color, fuente, texto)
-            imagettftext($baseImage, 20, 0, $xFolio, 50, $colorNegro, $fontPath, $folioText);
+            // Calculamos la X restando el centro de la burbuja al ancho total,
+            // y luego restamos la mitad de lo que mide el texto para centrarlo perfecto.
+            $xFolio = ($imageWidth - $centroBurbujaX) - ($folioWidth / 2);
 
-            // --- ESCRIBIR NOMBRE (Centrado perfectamente) ---
-            $bboxNombre = imagettfbbox(24, 0, $fontPath, $nombreText);
+            imagettftext($baseImage, $fontSizeFolio, 0, $xFolio, $yFolio, $colorNegro, $fontPath, $folioText);
+
+            // --- ESCRIBIR NOMBRE (Centrado perfectamente en la tarjeta completa) ---
+            $fontSizeNombre = 26;
+            $bboxNombre = imagettfbbox($fontSizeNombre, 0, $fontPath, $nombreText);
             $nombreWidth = $bboxNombre[2] - $bboxNombre[0];
             $xNombre = ($imageWidth / 2) - ($nombreWidth / 2);
 
-            // Y=380 es un estimado hacia abajo de la tarjeta, ajústalo si queda muy arriba o abajo
-            imagettftext($baseImage, 24, 0, $xNombre, 380, $colorBlanco, $fontPath, $nombreText);
+            imagettftext($baseImage, $fontSizeNombre, 0, $xNombre, $yNombre, $colorBlanco, $fontPath, $nombreText);
 
             // E) Guardar la imagen final
             $filename = "cards/tarjeta_{$card->folio_formateado}.png";
             $storagePath = storage_path("app/public/{$filename}");
             imagepng($baseImage, $storagePath);
 
-            // F) Limpiar la memoria del servidor y borrar temporales
+            // F) Limpiar la memoria del servidor
             imagedestroy($baseImage);
             imagedestroy($qrImage);
             @unlink($tempQrPath);
@@ -122,7 +133,7 @@ class GenerarTarjetaDescuento implements ShouldQueue
             Mail::to($card->email_envio)->send(new TarjetaDescuentoEnviada($card));
             $card->update(['enviado_por_correo' => true]);
 
-            Log::info("Tarjeta generada exitosamente con GD Nativo: {$filename}");
+            Log::info("Tarjeta generada exitosamente con diseño ajustado: {$filename}");
 
         } catch (\Exception $e) {
             Log::error("Error generando tarjeta de descuento para INE ID {$ine->id}: " . $e->getMessage());

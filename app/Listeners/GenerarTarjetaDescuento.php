@@ -53,30 +53,28 @@ class GenerarTarjetaDescuento implements ShouldQueue
             // Actualizamos el registro con el JSON real
             $card->update(['qr_data_json' => $qrData]);
 
-            // 4. GENERAR LA IMAGEN CON PHP NATIVO (INTERVENTION IMAGE V2)
+            // 4. GENERAR LA IMAGEN CON PHP NATIVO (INTERVENTION IMAGE V3)
             Log::info("Iniciando generación PHP de imagen para tarjeta ID: {$card->id}");
 
-            // Aseguramos que el directorio de destino exista
             Storage::disk('public')->makeDirectory('cards');
 
-            // A) Generar el QR en formato PNG binario y guardarlo temporalmente
+            // A) Generar el QR
             $qrContent = json_encode($qrData);
             $qrImageBinary = QrCode::format('png')->size(130)->margin(0)->generate($qrContent);
             $tempQrPath = storage_path("app/public/temp_qr_{$card->id}.png");
             file_put_contents($tempQrPath, $qrImageBinary);
 
-            // B) Inicializar el manejador de imágenes (Sintaxis V2)
-            $manager = new \Intervention\Image\ImageManager(['driver' => 'gd']);
+            // B) Inicializar el manejador (Sintaxis V3 correcta)
+            $manager = new ImageManager(new Driver());
 
-            // C) Cargar tu plantilla base (usamos 'make' en lugar de 'read')
-            $image = $manager->make(public_path('templates/tarjeta_base.png'));
+            // C) Cargar tu plantilla base
+            $image = $manager->read(public_path('templates/tarjeta_base.png'));
 
-            // D) Pegar el QR en la esquina superior izquierda (usamos 'insert' en lugar de 'place')
-            $image->insert($tempQrPath, 'top-left', 20, 20);
+            // D) Pegar el QR
+            $image->place($tempQrPath, 'top-left', 20, 20);
 
-            // E) Escribir los textos sobre la imagen
+            // E) Escribir los textos
             $fontPath = public_path('fonts/fuente.ttf');
-
             $folio = $card->folio_formateado;
             $nombre = trim($ine->nombre . ' ' . $ine->apellido_paterno);
 
@@ -96,28 +94,27 @@ class GenerarTarjetaDescuento implements ShouldQueue
                 $font->align('center');
             });
 
-            // F) Guardar la imagen final ensamblada
+            // F) Guardar la imagen final
             $filename = "cards/tarjeta_{$card->folio_formateado}.png";
             $storagePath = storage_path("app/public/{$filename}");
-            $image->save($storagePath);
+
+            // En V3, toPng() asegura que se guarde correctamente
+            $image->toPng()->save($storagePath);
 
             // Limpiar: Borrar el QR temporal
             @unlink($tempQrPath);
 
-            // 5. Actualizar ruta de imagen en la base de datos
+            // 5. Actualizar ruta en BD
             $card->update(['image_path' => $filename]);
 
-            // 6. Enviar Correo Electrónico con Enlace
+            // 6. Enviar Correo
             Mail::to($card->email_envio)->send(new TarjetaDescuentoEnviada($card));
             $card->update(['enviado_por_correo' => true]);
 
             Log::info("Tarjeta generada exitosamente en PHP: {$filename}");
 
-
-
         } catch (\Exception $e) {
             Log::error("Error generando tarjeta de descuento para INE ID {$ine->id}: " . $e->getMessage());
-            // Si algo falla catastróficamente, borramos el registro huérfano
             if(isset($card)) $card->delete();
         }
     }

@@ -87,7 +87,7 @@ Route::get('/test-tarjeta', function () {
     imagecopy($baseImage, $qrImage, $qrX, $qrY, 0, 0, $qrSize, $qrSize);
 
     // 6. ESCRIBIR TEXTOS
-    $fontPath = public_path('fonts/fuente.ttf');
+    $fontPath = public_path('fonts/arial.ttf');
     $colorNegro = imagecolorallocate($baseImage, 0, 0, 0);
     $colorBlanco = imagecolorallocate($baseImage, 255, 255, 255);
     $imageWidth = imagesx($baseImage);

@@ -242,6 +242,9 @@
         users: Array
     });
 
+    const showDetalles = ref(false);
+    const selectedRecord = ref(null);
+
     // --- LÓGICA DE FILTROS EN TIEMPO REAL ---
     const search = ref(props.filters?.search || '');
     const userId = ref(props.filters?.user_id || '');

@@ -85,7 +85,7 @@
     ]
   },
   "resources/js/Pages/Admin/IneRecords/Index.vue": {
-    "file": "assets/Index-BF8C2bn0.js",
+    "file": "assets/Index-BUnh-GLv.js",
     "name": "Index",
     "src": "resources/js/Pages/Admin/IneRecords/Index.vue",
     "isDynamicEntry": true,
@@ -95,7 +95,7 @@
       "_AdminLayout-BsJHmo9t.js"
     ],
     "css": [
-      "assets/Index-B-tLYJ6t.css"
+      "assets/Index-DJK74cIT.css"
     ]
   },
   "resources/js/Pages/Admin/Logs/Index.vue": {
@@ -262,7 +262,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-C0zbzJQa.js",
+    "file": "assets/app-DrRLkqik.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -290,7 +290,7 @@
       "resources/js/Pages/Welcome.vue"
     ],
     "css": [
-      "assets/app-CK6g0tDM.css"
+      "assets/app-C3S9VZAO.css"
     ]
   }
 }

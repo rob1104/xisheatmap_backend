@@ -31,6 +31,7 @@
                             <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Folio / Curp</th>
                             <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Simpatizante</th>
                             <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Correo de Envío</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fechas</th>
                             <th class="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Estado</th>
                             <th class="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
@@ -38,7 +39,7 @@
                         <tbody class="bg-white divide-y divide-gray-100">
                         <tr v-for="tarjeta in tarjetas.data" :key="tarjeta.id" class="hover:bg-gray-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-bold text-indigo-600">{{ tarjeta.folio_formateado }}</div>
+                                <div class="text-sm font-bold text-indigo-600">{{ tarjeta.folio }}</div>
                                 <div class="text-xs text-gray-400 font-mono">{{ tarjeta.curp }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -47,6 +48,16 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                 {{ tarjeta.email_envio }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-xs text-gray-500 mb-1">
+                                    <span class="font-bold text-gray-400 uppercase tracking-wider mr-1">Alta:</span>
+                                    <span class="text-gray-700">{{ formatearFecha(tarjeta.created_at) }}</span>
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    <span class="font-bold text-gray-400 uppercase tracking-wider mr-1">Vence:</span>
+                                    <span class="text-indigo-600 font-bold">{{ formatearFecha(tarjeta.fecha_validez_fin) }}</span>
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
                                     <span :class="tarjeta.enviado_por_correo ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'" class="px-3 py-1 rounded-full text-xs font-bold">
@@ -86,42 +97,53 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Head, router, useForm } from '@inertiajs/vue3'
-import AdminLayout from '@/Layouts/AdminLayout.vue'
+    import { ref } from 'vue'
+    import { Head, router, useForm } from '@inertiajs/vue3'
+    import AdminLayout from '@/Layouts/AdminLayout.vue'
 
-const props = defineProps({
-    tarjetas: Object,
-    filters: Object
-})
-
-const search = ref(props.filters.search || '')
-const showModal = ref(false)
-const selectedTarjeta = ref(null)
-
-const form = useForm({
-    email_envio: ''
-})
-
-const doSearch = () => {
-    router.get(route('tarjetas.index'), { search: search.value }, { preserveState: true })
-}
-
-const openEditModal = (tarjeta) => {
-    selectedTarjeta.value = tarjeta
-    form.email_envio = tarjeta.email_envio
-    showModal.value = true
-}
-
-const saveEmail = () => {
-    form.put(route('tarjetas.updateEmail', selectedTarjeta.value.id), {
-        onSuccess: () => showModal.value = false
+    const props = defineProps({
+        tarjetas: Object,
+        filters: Object
     })
-}
 
-const reenviar = (id) => {
-    if(confirm('¿Estás seguro de reenviar esta tarjeta?')) {
-        router.post(route('tarjetas.reenviar', id))
+    const search = ref(props.filters.search || '')
+    const showModal = ref(false)
+    const selectedTarjeta = ref(null)
+
+    const form = useForm({
+        email_envio: ''
+    })
+
+    const doSearch = () => {
+        router.get(route('tarjetas.index'), { search: search.value }, { preserveState: true })
     }
-}
+
+    const openEditModal = (tarjeta) => {
+        selectedTarjeta.value = tarjeta
+        form.email_envio = tarjeta.email_envio
+        showModal.value = true
+    }
+
+    const saveEmail = () => {
+        form.put(route('tarjetas.updateEmail', selectedTarjeta.value.id), {
+            onSuccess: () => showModal.value = false
+        })
+    }
+
+    const reenviar = (id) => {
+        if(confirm('¿Estás seguro de reenviar esta tarjeta?')) {
+            router.post(route('tarjetas.reenviar', id))
+        }
+    }
+
+    const formatearFecha = (fechaCruda) => {
+        if (!fechaCruda) return 'N/A';
+
+        const fecha = new Date(fechaCruda);
+        return fecha.toLocaleDateString('es-MX', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
+    };
 </script>

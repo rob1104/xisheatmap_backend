@@ -59,14 +59,14 @@ class GenerarTarjetaDescuento implements ShouldQueue
             Storage::disk('public')->makeDirectory('cards');
 
             // --- VARIABLES DE DISEÑO (Ajusta estos números si queda un poco movido) ---
-            $qrSize = 320;         // Tamaño del código QR
-            $qrX = 60;             // Posición X del QR (De izquierda a derecha)
-            $qrY = 60;             // Posición Y del QR (De arriba hacia abajo)
+            $qrSize = 220;         // Tamaño del código QR
+            $qrX = 35;             // Posición X del QR (De izquierda a derecha)
+            $qrY = 35;             // Posición Y del QR (De arriba hacia abajo)
 
-            $yFolio = 120;          // Posición Y (altura) del Folio dentro de su burbuja
-            $centroBurbujaX = 150; // Distancia desde el borde derecho hasta el centro de la burbuja blanca
+            $yFolio = 85;          // Posición Y (altura) del Folio dentro de su burbuja
+            $centroBurbujaX = 220; // Distancia desde el borde derecho hasta el centro de la burbuja blanca
 
-            $yNombre = 260;        // Altura del nombre (debe quedar sobre 'NEGOCIO AFILIADO')
+            $yNombre = 360;        // Altura del nombre (debe quedar sobre 'NEGOCIO AFILIADO')
             // -------------------------------------------------------------------------
 
             // A) Generar el QR con el nuevo tamaño

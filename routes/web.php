@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\HeatMapController;
 use App\Http\Controllers\Admin\IneRecordController;
+use App\Http\Controllers\Admin\TarjetaController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admini\TrackingController;
@@ -39,6 +40,10 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::put('/usuarios/{user}', [UserController::class, 'update'])->name('usuarios.update');
     Route::delete('/usuarios/{user}', [UserController::class, 'destroy'])->name('usuarios.destroy');
     Route::get('/heatmap', [HeatMapController::class, 'index'])->name('heatmap.index');
+
+    Route::get('/tarjetas', [TarjetaController::class, 'index'])->name('tarjetas.index');
+    Route::put('/tarjetas/{tarjeta}/email', [TarjetaController::class, 'updateEmail'])->name('tarjetas.updateEmail');
+    Route::post('/tarjetas/{tarjeta}/reenviar', [TarjetaController::class, 'reenviarCorreo'])->name('tarjetas.reenviar');
 
 
     // ---------------------------------------------------

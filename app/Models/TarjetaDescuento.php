@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class TarjetaDescuento extends Model
 {
+    use LogsActivity;
+
     protected $table = 'tarjetas_descuento';
 
     protected $fillable = [
@@ -29,5 +33,16 @@ class TarjetaDescuento extends Model
     {
         // TD + Año actual + ID con ceros a la izquierda (ej: TD23-00045)
         return 'TD' . $this->created_at->format('y') . '-' . str_pad($this->id, 5, '0', STR_PAD_LEFT);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            // Guarda los cambios de TODOS los campos fillable
+            ->logFillable()
+            // Solo guarda el registro si realmente hubo un cambio (ignora si le dan guardar sin modificar nada)
+            ->logOnlyDirty()
+            // Le da un nombre descriptivo a la acción
+            ->setDescriptionForEvent(fn(string $eventName) => "Tarjetas de descuento {$eventName}");
     }
 }

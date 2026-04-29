@@ -65,7 +65,7 @@
                         <tbody class="divide-y divide-slate-800 bg-slate-900">
 
                         <tr v-if="records.data.length === 0">
-                            <td colspan="5" class="py-12 text-center">
+                            <td colspan="6" class="py-12 text-center">
                                 <svg class="mx-auto h-12 w-12 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
                                 <p class="text-slate-400 font-medium text-sm">No se encontraron expedientes con estos filtros.</p>
                             </td>
@@ -171,220 +171,226 @@
                 </div>
             </div>
 
-            <div v-if="isImageModalOpen" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
-                    <div class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm transition-opacity" @click="isImageModalOpen = false"></div>
+        </div>
+    </AdminLayout>
 
-                    <div class="relative inline-block align-bottom bg-slate-900 text-left overflow-hidden rounded-2xl shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full border border-slate-700">
-                        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-800 bg-slate-900/50">
-                            <h3 class="text-lg font-bold text-slate-100">{{ currentImageTitle }}</h3>
-                            <button @click="isImageModalOpen = false" class="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-full p-1.5 transition-colors">
-                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        <div class="p-6 bg-slate-950 flex justify-center items-center">
-                            <img :src="currentImageUrl" alt="Evidencia INE" class="max-w-full max-h-[70vh] object-contain rounded-xl ring-1 ring-slate-800 shadow-2xl" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div v-if="showDetalles" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md">
-                <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-fade-in-up">
+    <Teleport to="body">
+        <div v-if="isImageModalOpen" class="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
+                <div class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm transition-opacity" @click="isImageModalOpen = false"></div>
 
-                    <div class="px-8 py-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-                        <div>
-                            <h3 class="text-xl font-black text-white tracking-widest uppercase">Expediente Digital</h3>
-                            <p class="text-xs text-indigo-400 font-bold tracking-tighter">DATOS EXTRAÍDOS DE IDENTIFICACIÓN OFICIAL</p>
-                        </div>
-                        <button @click="showDetalles = false" class="text-slate-500 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="3"/></svg>
+                <div class="relative inline-block align-bottom bg-slate-900 text-left overflow-hidden rounded-2xl shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full border border-slate-700">
+                    <div class="flex justify-between items-center px-6 py-4 border-b border-slate-800 bg-slate-900/50">
+                        <h3 class="text-lg font-bold text-slate-100">{{ currentImageTitle }}</h3>
+                        <button @click="isImageModalOpen = false" class="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-full p-1.5 transition-colors">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
-
-                    <div class="p-8 overflow-y-auto max-h-[80vh] custom-scrollbar">
-
-                        <div class="flex flex-col md:flex-row items-center gap-6 bg-slate-950 p-6 rounded-2xl border border-slate-800 mb-8">
-                            <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center text-4xl font-black text-white shadow-xl shadow-indigo-500/10">
-                                {{ selectedRecord.nombre.charAt(0) }}
-                            </div>
-                            <div class="text-center md:text-left flex-1">
-                                <div class="text-2xl font-black text-white tracking-tight">
-                                    {{ selectedRecord.nombre }} {{ selectedRecord.apellido_paterno }} {{ selectedRecord.apellido_materno }}
-                                </div>
-                                <div class="flex flex-wrap justify-center md:justify-start gap-4 mt-2">
-                        <span class="text-xs font-bold px-3 py-1 bg-slate-800 text-slate-300 rounded-full border border-slate-700 uppercase tracking-widest">
-                            {{ selectedRecord.sexo === 'H' ? 'Hombre' : 'Mujer' }}
-                        </span>
-                                    <span class="text-xs font-bold px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20 uppercase tracking-widest font-mono">
-                            CURP: {{ selectedRecord.curp }}
-                        </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-
-                            <div class="space-y-6">
-                                <h4 class="text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-800 pb-2">Identificación Electora</h4>
-
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Clave de Elector</p>
-                                    <p class="text-slate-200 font-mono text-sm tracking-tight">{{ selectedRecord.clave_elector }}</p>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Número OCR</p>
-                                    <p class="text-slate-200 font-mono text-sm tracking-tight">{{ selectedRecord.ocr_numero || 'No disponible' }}</p>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div class="space-y-1">
-                                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sección</p>
-                                        <p class="text-slate-200 text-sm font-bold">{{ selectedRecord.seccion }}</p>
-                                    </div>
-                                    <div class="space-y-1">
-                                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Vigencia</p>
-                                        <p class="text-slate-200 text-sm font-bold">{{ selectedRecord.vigencia }}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="space-y-6">
-                                <h4 class="text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-800 pb-2">Domicilio Registrado</h4>
-
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Calle y Número</p>
-                                    <p class="text-slate-200 text-sm italic">"{{ selectedRecord.calle_numero }}"</p>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Colonia y C.P.</p>
-                                    <p class="text-slate-200 text-sm">{{ selectedRecord.colonia }} - {{ selectedRecord.codigo_postal }}</p>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ubicación</p>
-                                    <p class="text-slate-200 text-sm font-semibold">{{ selectedRecord.municipio }}, {{ selectedRecord.estado }}</p>
-                                </div>
-                            </div>
-
-                            <div class="space-y-6">
-                                <h4 class="text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-800 pb-2">Contacto y Auditoría</h4>
-
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Teléfono</p>
-                                    <p class="text-slate-200 text-sm">{{ selectedRecord.telefono || 'Sin registrar' }}</p>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Correo Electrónico</p>
-                                    <p class="text-indigo-400 text-sm truncate">{{ selectedRecord.correo || 'Sin registrar' }}</p>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Capturado Por</p>
-                                    <p class="text-slate-200 text-sm font-bold">{{ selectedRecord.user?.name }}</p>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <div class="mt-10 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
-                            <div class="flex items-center gap-4">
-                                <div class="bg-slate-800 p-3 rounded-xl border border-slate-700">
-                                    <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" stroke-width="2"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-width="2"/></svg>
-                                </div>
-                                <div>
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Coordenadas de Captura</p>
-                                    <p class="text-slate-400 font-mono text-xs">{{ selectedRecord.latitud }}, {{ selectedRecord.longitud }}</p>
-                                </div>
-                            </div>
-
-                            <div class="flex items-center gap-6">
-                                <div class="text-right">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Nacimiento</p>
-                                    <p class="text-slate-300 font-bold text-xs uppercase">{{ formatearFechaSimple(selectedRecord.fecha_nacimiento) }}</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Sincronizado el</p>
-                                    <p class="text-slate-300 font-bold text-xs uppercase">{{ formatearFechaSimple(selectedRecord.created_at) }}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <div class="px-8 py-5 bg-slate-950 border-t border-slate-800 flex justify-end gap-3">
-                        <button @click="showDetalles = false" class="px-8 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all">Cerrar Ficha</button>
+                    <div class="p-6 bg-slate-950 flex justify-center items-center">
+                        <img :src="currentImageUrl" alt="Evidencia INE" class="max-w-full max-h-[70vh] object-contain rounded-xl ring-1 ring-slate-800 shadow-2xl" />
                     </div>
                 </div>
             </div>
         </div>
-    </AdminLayout>
+    </Teleport>
+
+    <Teleport to="body">
+        <div v-if="showDetalles" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-fade-in-up relative z-[101]">
+
+                <div class="px-8 py-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                    <div>
+                        <h3 class="text-xl font-black text-white tracking-widest uppercase">Expediente Digital</h3>
+                        <p class="text-xs text-indigo-400 font-bold tracking-tighter">DATOS EXTRAÍDOS DE IDENTIFICACIÓN OFICIAL</p>
+                    </div>
+                    <button @click="showDetalles = false" class="text-slate-500 hover:text-white bg-slate-800 p-2 rounded-full transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="3"/></svg>
+                    </button>
+                </div>
+
+                <div class="p-8 overflow-y-auto max-h-[80vh] custom-scrollbar">
+
+                    <div class="flex flex-col md:flex-row items-center gap-6 bg-slate-950 p-6 rounded-2xl border border-slate-800 mb-8">
+                        <div class="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-900 flex items-center justify-center text-4xl font-black text-white shadow-xl shadow-indigo-500/10">
+                            {{ selectedRecord.nombre.charAt(0) }}
+                        </div>
+                        <div class="text-center md:text-left flex-1">
+                            <div class="text-2xl font-black text-white tracking-tight">
+                                {{ selectedRecord.nombre }} {{ selectedRecord.apellido_paterno }} {{ selectedRecord.apellido_materno }}
+                            </div>
+                            <div class="flex flex-wrap justify-center md:justify-start gap-4 mt-2">
+                                <span class="text-xs font-bold px-3 py-1 bg-slate-800 text-slate-300 rounded-full border border-slate-700 uppercase tracking-widest">
+                                    {{ selectedRecord.sexo === 'H' ? 'Hombre' : 'Mujer' }}
+                                </span>
+                                <span class="text-xs font-bold px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20 uppercase tracking-widest font-mono">
+                                    CURP: {{ selectedRecord.curp }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+                        <div class="space-y-6">
+                            <h4 class="text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-800 pb-2">Identificación Electora</h4>
+
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Clave de Elector</p>
+                                <p class="text-slate-200 font-mono text-sm tracking-tight">{{ selectedRecord.clave_elector }}</p>
+                            </div>
+
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Número OCR</p>
+                                <p class="text-slate-200 font-mono text-sm tracking-tight">{{ selectedRecord.ocr_numero || 'No disponible' }}</p>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sección</p>
+                                    <p class="text-slate-200 text-sm font-bold">{{ selectedRecord.seccion }}</p>
+                                </div>
+                                <div class="space-y-1">
+                                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Vigencia</p>
+                                    <p class="text-slate-200 text-sm font-bold">{{ selectedRecord.vigencia }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <h4 class="text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-800 pb-2">Domicilio Registrado</h4>
+
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Calle y Número</p>
+                                <p class="text-slate-200 text-sm italic">"{{ selectedRecord.calle_numero }}"</p>
+                            </div>
+
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Colonia y C.P.</p>
+                                <p class="text-slate-200 text-sm">{{ selectedRecord.colonia }} - {{ selectedRecord.codigo_postal }}</p>
+                            </div>
+
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ubicación</p>
+                                <p class="text-slate-200 text-sm font-semibold">{{ selectedRecord.municipio }}, {{ selectedRecord.estado }}</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <h4 class="text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-800 pb-2">Contacto y Auditoría</h4>
+
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Teléfono</p>
+                                <p class="text-slate-200 text-sm">{{ selectedRecord.telefono || 'Sin registrar' }}</p>
+                            </div>
+
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Correo Electrónico</p>
+                                <p class="text-indigo-400 text-sm truncate">{{ selectedRecord.correo || 'Sin registrar' }}</p>
+                            </div>
+
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Capturado Por</p>
+                                <p class="text-slate-200 text-sm font-bold">{{ selectedRecord.user?.name }}</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="mt-10 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                                <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" stroke-width="2"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-width="2"/></svg>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Coordenadas de Captura</p>
+                                <p class="text-slate-400 font-mono text-xs">{{ selectedRecord.latitud }}, {{ selectedRecord.longitud }}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-6">
+                            <div class="text-right">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Nacimiento</p>
+                                <p class="text-slate-300 font-bold text-xs uppercase">{{ formatearFechaSimple(selectedRecord.fecha_nacimiento) }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Sincronizado el</p>
+                                <p class="text-slate-300 font-bold text-xs uppercase">{{ formatearFechaSimple(selectedRecord.created_at) }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="px-8 py-5 bg-slate-950 border-t border-slate-800 flex justify-end gap-3">
+                    <button @click="showDetalles = false" class="px-8 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all">Cerrar Ficha</button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup>
-    import AdminLayout from '@/Layouts/AdminLayout.vue';
-    import { Head, Link, router } from '@inertiajs/vue3';
-    import { ref, watch } from 'vue';
+import AdminLayout from '@/Layouts/AdminLayout.vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { ref, watch } from 'vue';
 
-    const props = defineProps({
-        records: Object,
-        filters: Object,
-        users: Array
-    });
+const props = defineProps({
+    records: Object,
+    filters: Object,
+    users: Array
+});
 
-    const showDetalles = ref(false);
-    const selectedRecord = ref(null);
+const showDetalles = ref(false);
+const selectedRecord = ref(null);
 
-    // --- LÓGICA DE FILTROS EN TIEMPO REAL ---
-    const search = ref(props.filters?.search || '');
-    const userId = ref(props.filters?.user_id || '');
-    let searchTimeout = null;
+// --- LÓGICA DE FILTROS EN TIEMPO REAL ---
+const search = ref(props.filters?.search || '');
+const userId = ref(props.filters?.user_id || '');
+let searchTimeout = null;
 
-    // Observador: Cuando el usuario teclea o cambia el select, recarga la tabla
-    watch([search, userId], () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            router.get(route('expedientes.index'), {
-                search: search.value,
-                user_id: userId.value
-            }, {
-                preserveState: true, // Mantiene el foco en el input
-                replace: true        // No satura el historial del navegador
-            });
-        }, 400); // Espera 400ms después de que el usuario deja de escribir
-    });
-
-
-    // --- LÓGICA DEL VISOR DE IMÁGENES ---
-    const isImageModalOpen = ref(false);
-    const currentImageUrl = ref('');
-    const currentImageTitle = ref('');
-
-    const openImageModal = (record, tipo, title) => {
-        // Usamos la ruta segura de Laravel (cadenero)
-        currentImageUrl.value = route('expedientes.foto', { id: record.id, tipo: tipo });
-        currentImageTitle.value = title;
-        isImageModalOpen.value = true;
-    };
-
-    const verDetalles = (record) => {
-        selectedRecord.value = record;
-        showDetalles.value = true;
-    };
-
-    const confirmarBorrado = (record) => {
-        if (confirm(`¿Estás seguro de borrar permanentemente el expediente de ${record.nombre}? Esta acción no se puede deshacer.`)) {
-            router.delete(route('expedientes.destroy', record.id));
-        }
-    };
-
-    const formatearFechaSimple = (fecha) => {
-        return new Date(fecha).toLocaleDateString('es-MX', {
-            day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+// Observador: Cuando el usuario teclea o cambia el select, recarga la tabla
+watch([search, userId], () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        router.get(route('expedientes.index'), {
+            search: search.value,
+            user_id: userId.value
+        }, {
+            preserveState: true, // Mantiene el foco en el input
+            replace: true        // No satura el historial del navegador
         });
-    };
+    }, 400); // Espera 400ms después de que el usuario deja de escribir
+});
+
+
+// --- LÓGICA DEL VISOR DE IMÁGENES ---
+const isImageModalOpen = ref(false);
+const currentImageUrl = ref('');
+const currentImageTitle = ref('');
+
+const openImageModal = (record, tipo, title) => {
+    // Usamos la ruta segura de Laravel (cadenero)
+    currentImageUrl.value = route('expedientes.foto', { id: record.id, tipo: tipo });
+    currentImageTitle.value = title;
+    isImageModalOpen.value = true;
+};
+
+const verDetalles = (record) => {
+    selectedRecord.value = record;
+    showDetalles.value = true;
+};
+
+const confirmarBorrado = (record) => {
+    if (confirm(`¿Estás seguro de borrar permanentemente el expediente de ${record.nombre}? Esta acción no se puede deshacer.`)) {
+        router.delete(route('expedientes.destroy', record.id));
+    }
+};
+
+const formatearFechaSimple = (fecha) => {
+    return new Date(fecha).toLocaleDateString('es-MX', {
+        day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+};
 
 </script>
 

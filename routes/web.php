@@ -63,7 +63,7 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::get('/tarjetas', [TarjetaController::class, 'index'])->name('tarjetas.index');
     Route::put('/tarjetas/{tarjeta}/email', [TarjetaController::class, 'updateEmail'])->name('tarjetas.updateEmail');
     Route::post('/tarjetas/{tarjeta}/reenviar', [TarjetaController::class, 'reenviarCorreo'])->name('tarjetas.reenviar');
-
+    Route::delete('/expedientes/{record}', [IneRecordController::class, 'destroy'])->name('expedientes.destroy');
 
     // ---------------------------------------------------
     // RUTAS DE PERFIL (Generadas por Breeze)

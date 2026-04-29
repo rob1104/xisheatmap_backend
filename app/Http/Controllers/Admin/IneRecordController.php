@@ -62,4 +62,16 @@ class IneRecordController extends Controller
             'Content-Type' => File::mimeType($fullPath)
         ]);
     }
+
+    public function destroy(IneRecord $record)
+    {
+        // Verificamos el rol directamente
+        if (auth()->user()->role !== 'Administrador') {
+            return back()->with('error', 'No tienes permisos para eliminar expedientes.');
+        }
+
+        $record->delete();
+
+        return back()->with('success', 'Expediente eliminado correctamente.');
+    }
 }

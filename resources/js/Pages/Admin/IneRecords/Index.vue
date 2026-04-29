@@ -175,53 +175,109 @@
                     </div>
                 </div>
             </div>
+            <div v-if="showDetalles" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm">
+                <div class="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
+                    <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                        <h3 class="text-lg font-bold text-slate-100 uppercase tracking-widest">Ficha del Ciudadano</h3>
+                        <button @click="showDetalles = false" class="text-slate-500 hover:text-white">✕</button>
+                    </div>
 
+                    <div class="p-8 grid grid-cols-2 gap-6">
+                        <div class="col-span-2 flex items-center gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                            <div class="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-2xl font-black">{{ selectedRecord.nombre.charAt(0) }}</div>
+                            <div>
+                                <div class="text-xl font-bold text-white">{{ selectedRecord.nombre }} {{ selectedRecord.apellido_paterno }} {{ selectedRecord.apellido_materno }}</div>
+                                <div class="text-indigo-400 font-mono text-sm uppercase tracking-tighter">{{ selectedRecord.curp || 'CURP no registrada' }}</div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <p class="text-xs font-bold text-slate-500 uppercase">Clave de Elector</p>
+                            <p class="text-slate-200 font-mono">{{ selectedRecord.clave_elector }}</p>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-bold text-slate-500 uppercase">Sección Electoral</p>
+                            <p class="text-slate-200">{{ selectedRecord.seccion }}</p>
+                        </div>
+                        <div class="space-y-1 border-t border-slate-800 pt-4">
+                            <p class="text-xs font-bold text-slate-500 uppercase">Brigadista Responsable</p>
+                            <p class="text-slate-200">{{ selectedRecord.user?.name }}</p>
+                        </div>
+                        <div class="space-y-1 border-t border-slate-800 pt-4">
+                            <p class="text-xs font-bold text-slate-500 uppercase">Fecha de Captura</p>
+                            <p class="text-slate-200">{{ formatearFecha(selectedRecord.created_at) }}</p>
+                        </div>
+                    </div>
+
+                    <div class="px-6 py-4 bg-slate-950 border-t border-slate-800 text-right">
+                        <button @click="showDetalles = false" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition-all">Cerrar</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </AdminLayout>
 </template>
 
 <script setup>
-import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
+    import AdminLayout from '@/Layouts/AdminLayout.vue';
+    import { Head, Link, router } from '@inertiajs/vue3';
+    import { ref, watch } from 'vue';
 
-const props = defineProps({
-    records: Object,
-    filters: Object,
-    users: Array
-});
+    const props = defineProps({
+        records: Object,
+        filters: Object,
+        users: Array
+    });
 
-// --- LÓGICA DE FILTROS EN TIEMPO REAL ---
-const search = ref(props.filters?.search || '');
-const userId = ref(props.filters?.user_id || '');
-let searchTimeout = null;
+    // --- LÓGICA DE FILTROS EN TIEMPO REAL ---
+    const search = ref(props.filters?.search || '');
+    const userId = ref(props.filters?.user_id || '');
+    let searchTimeout = null;
 
-// Observador: Cuando el usuario teclea o cambia el select, recarga la tabla
-watch([search, userId], () => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-        router.get(route('expedientes.index'), {
-            search: search.value,
-            user_id: userId.value
-        }, {
-            preserveState: true, // Mantiene el foco en el input
-            replace: true        // No satura el historial del navegador
+    // Observador: Cuando el usuario teclea o cambia el select, recarga la tabla
+    watch([search, userId], () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            router.get(route('expedientes.index'), {
+                search: search.value,
+                user_id: userId.value
+            }, {
+                preserveState: true, // Mantiene el foco en el input
+                replace: true        // No satura el historial del navegador
+            });
+        }, 400); // Espera 400ms después de que el usuario deja de escribir
+    });
+
+
+    // --- LÓGICA DEL VISOR DE IMÁGENES ---
+    const isImageModalOpen = ref(false);
+    const currentImageUrl = ref('');
+    const currentImageTitle = ref('');
+
+    const openImageModal = (record, tipo, title) => {
+        // Usamos la ruta segura de Laravel (cadenero)
+        currentImageUrl.value = route('expedientes.foto', { id: record.id, tipo: tipo });
+        currentImageTitle.value = title;
+        isImageModalOpen.value = true;
+    };
+
+    const verDetalles = (record) => {
+        selectedRecord.value = record;
+        showDetalles.value = true;
+    };
+
+    const confirmarBorrado = (record) => {
+        if (confirm(`¿Estás seguro de borrar permanentemente el expediente de ${record.nombre}? Esta acción no se puede deshacer.`)) {
+            router.delete(route('expedientes.destroy', record.id));
+        }
+    };
+
+    const formatearFecha = (fecha) => {
+        return new Date(fecha).toLocaleDateString('es-MX', {
+            day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
         });
-    }, 400); // Espera 400ms después de que el usuario deja de escribir
-});
+    };
 
-
-// --- LÓGICA DEL VISOR DE IMÁGENES ---
-const isImageModalOpen = ref(false);
-const currentImageUrl = ref('');
-const currentImageTitle = ref('');
-
-const openImageModal = (record, tipo, title) => {
-    // Usamos la ruta segura de Laravel (cadenero)
-    currentImageUrl.value = route('expedientes.foto', { id: record.id, tipo: tipo });
-    currentImageTitle.value = title;
-    isImageModalOpen.value = true;
-};
 </script>
 
 <style scoped>

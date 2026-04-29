@@ -61,7 +61,7 @@
     "name": "index.esm"
   },
   "resources/js/Pages/Admin/Dashboard.vue": {
-    "file": "assets/Dashboard-CeSdPjmo.js",
+    "file": "assets/Dashboard-KIRfocXQ.js",
     "name": "Dashboard",
     "src": "resources/js/Pages/Admin/Dashboard.vue",
     "isDynamicEntry": true,
@@ -71,7 +71,7 @@
       "_AdminLayout-BsJHmo9t.js"
     ],
     "css": [
-      "assets/Dashboard-BlXfHBdA.css"
+      "assets/Dashboard-BBvdvPDI.css"
     ]
   },
   "resources/js/Pages/Admin/HeatMap/Index.vue": {
@@ -258,7 +258,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-71YcPBil.js",
+    "file": "assets/app-D5dw8jfV.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,

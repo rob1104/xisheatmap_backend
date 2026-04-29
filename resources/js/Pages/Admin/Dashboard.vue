@@ -20,7 +20,7 @@
                         <div class="ml-5 w-0 flex-1">
                             <dl>
                                 <dt class="text-xs font-black text-slate-500 uppercase tracking-widest">Total INEs</dt>
-                                <dd class="text-3xl font-black text-slate-100 leading-tight">4,821</dd>
+                                <dd class="text-3xl font-black text-slate-100 leading-tight">{{ kpis.total_ines.toLocaleString() }}</dd>
                             </dl>
                         </div>
                     </div>
@@ -37,8 +37,8 @@
                             <dl>
                                 <dt class="text-xs font-black text-slate-500 uppercase tracking-widest">Capturas Hoy</dt>
                                 <dd class="flex items-baseline">
-                                    <div class="text-3xl font-black text-slate-100 leading-tight">142</div>
-                                    <span class="ml-2 text-xs font-bold text-emerald-400">+12%</span>
+                                    <div class="text-3xl font-black text-slate-100 leading-tight">{{ kpis.capturas_hoy.toLocaleString() }}</div>
+                                    <span v-if="kpis.capturas_hoy > 0" class="ml-2 text-xs font-bold text-emerald-400">Activo</span>
                                 </dd>
                             </dl>
                         </div>
@@ -55,7 +55,7 @@
                         <div class="ml-5 w-0 flex-1">
                             <dl>
                                 <dt class="text-xs font-black text-slate-500 uppercase tracking-widest">En Campo</dt>
-                                <dd class="text-3xl font-black text-slate-100 leading-tight">38</dd>
+                                <dd class="text-3xl font-black text-slate-100 leading-tight">{{ kpis.en_campo.toLocaleString() }}</dd>
                             </dl>
                         </div>
                     </div>
@@ -71,7 +71,7 @@
                         <div class="ml-5 w-0 flex-1">
                             <dl>
                                 <dt class="text-xs font-black text-slate-500 uppercase tracking-widest">Tarjetas</dt>
-                                <dd class="text-3xl font-black text-slate-100 leading-tight">3,105</dd>
+                                <dd class="text-3xl font-black text-slate-100 leading-tight">{{ kpis.tarjetas.toLocaleString() }}</dd>
                             </dl>
                         </div>
                     </div>
@@ -114,10 +114,17 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head } from '@inertiajs/vue3';
+
+// Declaramos que este componente recibe los 'kpis' desde el controlador de Laravel
+const props = defineProps({
+    kpis: {
+        type: Object,
+        required: true,
+    }
+});
 </script>
 
 <style scoped>
-/* Transición suave para la entrada de los KPIs */
 .animate-fade-in-up {
     animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

@@ -9,7 +9,10 @@ use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\CheckAdminAccess;
 use App\Mail\TarjetaDescuentoEnviada;
+use App\Models\IneRecord;
 use App\Models\TarjetaDescuento;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -26,7 +29,23 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     // VISTAS DEL PANEL DE CONTROL (ADMIN / SUPERVISOR)
     // ---------------------------------------------------
     Route::get('/dashboard', function () {
-        return Inertia::render('Admin/Dashboard');
+        $kpis = [
+            // 1. Total histórico de registros
+            'total_ines' => IneRecord::count(),
+
+            // 2. Registros de hoy (usando Carbon para la fecha actual)
+            'capturas_hoy' => IneRecord::whereDate('created_at', Carbon::today())->count(),
+
+            // 3. Usuarios con el rol de brigadista
+            'en_campo' => User::where('role', 'brigadista')->count(),
+
+            // 4. Total de tarjetas generadas
+            'tarjetas' => TarjetaDescuento::count(),
+        ];
+
+        return Inertia::render('Admin/Dashboard', [
+            'kpis' => $kpis
+        ]);
     })->name('dashboard');
 
     Route::get('/expedientes', [IneRecordController::class, 'index'])->name('expedientes.index');

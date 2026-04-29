@@ -51,7 +51,7 @@ class GenerarTarjetaDescuento implements ShouldQueue
             ];
 
             // Actualizamos el registro con el JSON real
-            $card->update(['qr_data_json' => $qrData]);
+            $card->update(['qr_data_json' => $qrData, 'folio' => $card->folio_formateado]);
 
             // 4. GENERAR LA IMAGEN CON PHP NATIVO (CERO LIBRERÍAS EXTERNAS)
             Log::info("Iniciando generación GD Nativo para tarjeta ID: {$card->id}");

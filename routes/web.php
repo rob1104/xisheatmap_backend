@@ -8,6 +8,7 @@ use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\CheckAdminAccess;
 use App\Mail\TarjetaDescuentoEnviada;
+use App\Models\TarjetaDescuento;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;

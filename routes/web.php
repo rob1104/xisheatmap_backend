@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\CheckAdminAccess;
+use App\Mail\TarjetaDescuentoEnviada;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -53,27 +54,31 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
 
 // Pega esto al final de routes/web.php
 
-Route::get('/test-tarjeta', function () {
-    // 1. DATOS FICTICIOS
-    $folioFicticio = 'TD26-99999';
-    $nombreFicticio = 'ROBERTO EZEQUIEL ESCAMILLA';
-    $qrData = ['f' => $folioFicticio, 'c' => 'XAXX010101000', 'n' => $nombreFicticio];
+Route::get('/test-correo', function () {
+    $emailDestino = 'rescamilla@xis.mx'; // Tu correo real
 
-    // 2. VARIABLES DE DISEÑO (¡Estas son las que vas a modificar!)
-    $qrSize = 220;         // Tamaño del código QR
-    $qrX = 35;             // Posición X del QR (Izquierda/Derecha)
-    $qrY = 35;             // Posición Y del QR (Arriba/Abajo)
+    // 1. Obtenemos la última tarjeta real de tu BD para que el correo tenga datos válidos
+    $card = TarjetaDescuento::with('ineRecord')->latest()->first();
 
-    $yFolio = 85;          // Posición Y (altura) del Folio
-    $centroBurbujaX = 220; // Ajusta esto para mover el folio izquierda/derecha
+    if (!$card) {
+        return "Error: Necesitas tener al menos un registro en la tabla tarjetas_descuento para hacer la prueba.";
+    }
 
-    $yNombre = 360;        // Altura del nombre
-    $fontSizeFolio = 22;   // Tamaño letra del folio
-    $fontSizeNombre = 26;  // Tamaño letra del nombre
+    // --- 2. VARIABLES DE DISEÑO ---
+    $qrSize = 220;
+    $qrX = 35;
+    $qrY = 35;
+    $yFolio = 85;
+    $centroBurbujaX = 220;
+    $yNombre = 360;
+    $fontSizeFolio = 22;
+    $fontSizeNombre = 26;
 
-    // 3. GENERAR QR TEMPORAL
-    $qrContent = json_encode($qrData);
-    $qrImageBinary = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size($qrSize)->margin(0)->generate($qrContent);
+    Storage::disk('public')->makeDirectory('cards');
+
+    // 3. GENERAR QR
+    $qrContent = json_encode($card->qr_data_json ?? ['test' => '123']);
+    $qrImageBinary = QrCode::format('png')->size($qrSize)->margin(0)->generate($qrContent);
     $tempQrPath = storage_path("app/public/temp_qr_test.png");
     file_put_contents($tempQrPath, $qrImageBinary);
 
@@ -87,36 +92,46 @@ Route::get('/test-tarjeta', function () {
     imagecopy($baseImage, $qrImage, $qrX, $qrY, 0, 0, $qrSize, $qrSize);
 
     // 6. ESCRIBIR TEXTOS
-    $fontPath = public_path('fonts/arial.ttf');
+    $fontPath = public_path('fonts/fuente.ttf');
     $colorNegro = imagecolorallocate($baseImage, 0, 0, 0);
     $colorBlanco = imagecolorallocate($baseImage, 255, 255, 255);
     $imageWidth = imagesx($baseImage);
 
+    // Textos reales de la BD
+    $folioText = 'FOLIO: ' . $card->folio_formateado;
+    $ine = $card->ineRecord;
+    $nombreText = mb_strtoupper(trim($ine->nombre . ' ' . $ine->apellido_paterno . ' ' . $ine->apellido_materno), 'UTF-8');
+
     // Matemáticas del Folio
-    $folioText = 'FOLIO: ' . $folioFicticio;
     $bboxFolio = imagettfbbox($fontSizeFolio, 0, $fontPath, $folioText);
     $folioWidth = $bboxFolio[2] - $bboxFolio[0];
     $xFolio = ($imageWidth - $centroBurbujaX) - ($folioWidth / 2);
     imagettftext($baseImage, $fontSizeFolio, 0, $xFolio, $yFolio, $colorNegro, $fontPath, $folioText);
 
     // Matemáticas del Nombre
-    $bboxNombre = imagettfbbox($fontSizeNombre, 0, $fontPath, $nombreFicticio);
+    $bboxNombre = imagettfbbox($fontSizeNombre, 0, $fontPath, $nombreText);
     $nombreWidth = $bboxNombre[2] - $bboxNombre[0];
     $xNombre = ($imageWidth / 2) - ($nombreWidth / 2);
-    imagettftext($baseImage, $fontSizeNombre, 0, $xNombre, $yNombre, $colorBlanco, $fontPath, $nombreFicticio);
+    imagettftext($baseImage, $fontSizeNombre, 0, $xNombre, $yNombre, $colorBlanco, $fontPath, $nombreText);
 
-    // 7. MOSTRAR DIRECTAMENTE EN EL NAVEGADOR
-    ob_start(); // Iniciar captura de salida
-    imagepng($baseImage); // Dibujar imagen en la memoria
-    $imageContent = ob_get_clean(); // Guardar la imagen en una variable
+    // 7. GUARDAR LA IMAGEN DE PRUEBA
+    $filename = "cards/tarjeta_TEST_CORREO.png";
+    $storagePath = storage_path("app/public/{$filename}");
+    imagepng($baseImage, $storagePath);
 
-    // Limpiar memoria RAM
+    // Limpiar memoria
     imagedestroy($baseImage);
     imagedestroy($qrImage);
     @unlink($tempQrPath);
 
-    // Devolver como respuesta HTTP de imagen
-    return response($imageContent, 200)->header('Content-Type', 'image/png');
+    // 8. ENVIAR EL CORREO
+    // Le inyectamos temporalmente la ruta de nuestra nueva imagen a la tarjeta para que el adjunto salga bien
+    $card->image_path = $filename;
+
+    // Disparamos el correo
+    Mail::to($emailDestino)->send(new TarjetaDescuentoEnviada($card));
+
+    return "<h2>¡Prueba enviada!</h2> Revisa la bandeja de entrada de <b>{$emailDestino}</b>.<br><br> Si el diseño se ve bien, copia las coordenadas a tu Listener.";
 });
 
 require __DIR__.'/auth.php';

@@ -125,130 +125,138 @@
                                      class="p-1.5 cursor-not-allowed opacity-30">
                                     <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </div>
-
                             </div>
                         </td>
                     </tr>
                     </tbody>
                 </table>
             </div>
+        </div>
+    </AdminLayout>
 
-            <div v-if="showTeamModal" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm transition-opacity" @click="showTeamModal = false"></div>
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+    <Teleport to="body">
+        <div v-if="showTeamModal" class="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
+                <div class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm transition-opacity" @click="showTeamModal = false"></div>
 
-                    <div class="inline-block align-bottom bg-slate-900 border border-slate-800 rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
-                        <div class="px-6 py-5">
-                            <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-4">
-                                <h3 class="text-lg font-bold text-slate-100">
-                                    Equipo de {{ selectedLeader?.name }}
-                                </h3>
-                                <button @click="showTeamModal = false" class="text-slate-500 hover:text-slate-300 transition-colors">
-                                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                            </div>
-
-                            <ul class="divide-y divide-slate-800 max-h-96 overflow-y-auto custom-scrollbar pr-2">
-                                <li v-for="member in selectedLeader?.children" :key="member.id" class="py-3 flex justify-between items-center group">
-                                    <div class="flex items-center">
-                                        <div class="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-bold text-xs">
-                                            {{ member.name.charAt(0).toUpperCase() }}
-                                        </div>
-                                        <div class="ml-3">
-                                            <p class="text-sm font-bold text-slate-200">{{ member.name }}</p>
-                                            <p class="text-[10px] text-slate-500 uppercase tracking-widest">{{ member.role }}</p>
-                                        </div>
-                                    </div>
-                                    <div class="text-right">
-                                        <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border"
-                                              :class="member.ines_count > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-800 text-slate-500 border-slate-700'">
-                                            {{ member.ines_count }} capturas
-                                        </span>
-                                    </div>
-                                </li>
-                            </ul>
-
-                        </div>
-                        <div class="bg-slate-950 px-6 py-4 border-t border-slate-800 sm:flex sm:flex-row-reverse">
-                            <button @click="showTeamModal = false" type="button" class="w-full inline-flex justify-center rounded-xl border border-transparent px-5 py-2 bg-slate-800 text-sm font-bold text-slate-200 hover:bg-slate-700 transition-colors sm:ml-3 sm:w-auto">
-                                Cerrar
+                <div class="relative inline-block bg-slate-900 border border-slate-800 rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+                    <div class="px-6 py-5">
+                        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-4">
+                            <h3 class="text-lg font-bold text-slate-100">
+                                Equipo de {{ selectedLeader?.name }}
+                            </h3>
+                            <button @click="showTeamModal = false" class="text-slate-500 hover:text-slate-300 transition-colors">
+                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <div v-if="showModal" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm transition-opacity" @click="closeModal()"></div>
-
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                    <div class="inline-block align-bottom bg-slate-900 border border-slate-800 rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                        <form @submit.prevent="submitForm">
-                            <div class="px-6 pt-6 pb-6">
-                                <h3 class="text-xl font-black text-slate-100 mb-6 border-b border-slate-800 pb-4">
-                                    {{ isEditing ? 'Editar Usuario' : 'Registrar Nuevo Integrante' }}
-                                </h3>
-
-                                <div class="space-y-5">
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Nombre Completo</label>
-                                        <input autofocus v-model="form.name" type="text" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors">
-                                        <div v-if="form.errors.name" class="text-red-400 text-xs mt-1 font-bold">{{ form.errors.name }}</div>
+                        <ul class="divide-y divide-slate-800 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+                            <li v-for="member in selectedLeader?.children" :key="member.id" class="py-3 flex justify-between items-center group">
+                                <div class="flex items-center">
+                                    <div class="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-bold text-xs">
+                                        {{ member.name.charAt(0).toUpperCase() }}
                                     </div>
-
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Correo Electrónico</label>
-                                        <input v-model="form.email" type="email" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors">
-                                        <div v-if="form.errors.email" class="text-red-400 text-xs mt-1 font-bold">{{ form.errors.email }}</div>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
-                                            Contraseña <span class="text-slate-500 lowercase normal-case tracking-normal">{{ isEditing ? '(Dejar en blanco para no cambiar)' : '' }}</span>
-                                        </label>
-                                        <input v-model="form.password" type="password" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-2.5 transition-colors">
-                                        <div v-if="form.errors.password" class="text-red-400 text-xs mt-1 font-bold">{{ form.errors.password }}</div>
-                                    </div>
-
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Rol del Sistema</label>
-                                            <select v-model="form.role" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2.5 transition-colors custom-select appearance-none">
-                                                <option value="Administrador" class="bg-slate-900">Administrador</option>
-                                                <option value="Supervisor" class="bg-slate-900">Supervisor</option>
-                                                <option value="Capturista" class="bg-slate-900">Capturista</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Jefe Directo</label>
-                                            <select v-model="form.parent_id" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-3 py-2.5 transition-colors custom-select appearance-none">
-                                                <option :value="null" class="bg-slate-900 text-slate-400">Sin Jefe Directo</option>
-                                                <option v-for="p in availableParents" :key="p.id" :value="p.id" v-show="p.id !== editingId" class="bg-slate-900">
-                                                    {{ p.name }} ({{ p.role }})
-                                                </option>
-                                            </select>
-                                        </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm font-bold text-slate-200">{{ member.name }}</p>
+                                        <p class="text-[10px] text-slate-500 uppercase tracking-widest">{{ member.role }}</p>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div class="bg-slate-950 px-6 py-4 border-t border-slate-800 sm:flex sm:flex-row-reverse">
-                                <button type="submit" :disabled="form.processing" class="w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-5 py-2.5 bg-indigo-600 text-sm font-bold text-white hover:bg-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 sm:ml-3 sm:w-auto transition-all">
-                                    {{ isEditing ? 'Guardar Cambios' : 'Crear Usuario' }}
-                                </button>
-                                <button @click="closeModal()" type="button" class="mt-3 w-full inline-flex justify-center rounded-xl border border-transparent px-5 py-2.5 bg-slate-800 text-sm font-bold text-slate-300 hover:bg-slate-700 hover:text-white sm:mt-0 sm:ml-3 sm:w-auto transition-colors">
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
+                                <div class="text-right">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border"
+                                          :class="member.ines_count > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-800 text-slate-500 border-slate-700'">
+                                        {{ member.ines_count }} capturas
+                                    </span>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="bg-slate-950 px-6 py-4 border-t border-slate-800 sm:flex sm:flex-row-reverse">
+                        <button @click="showTeamModal = false" type="button" class="w-full inline-flex justify-center rounded-xl border border-transparent px-5 py-2 bg-slate-800 text-sm font-bold text-slate-200 hover:bg-slate-700 transition-colors sm:ml-3 sm:w-auto">
+                            Cerrar
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
-    </AdminLayout>
+    </Teleport>
+
+    <Teleport to="body">
+        <div v-if="showModal" class="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
+                <div class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm transition-opacity" @click="closeModal()"></div>
+
+                <div class="relative inline-block bg-slate-900 border border-slate-800 rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                    <form @submit.prevent="submitForm">
+
+                        <div class="bg-slate-900/50 px-8 py-6 border-b border-slate-800 flex justify-between items-center">
+                            <h3 class="text-xl font-black text-slate-100 tracking-widest uppercase">
+                                {{ isEditing ? 'Editar Usuario' : 'Registrar Nuevo Integrante' }}
+                            </h3>
+                            <button type="button" @click="closeModal()" class="text-slate-500 hover:text-white bg-slate-800 p-2 rounded-full transition-colors focus:outline-none">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+
+                        <div class="px-8 py-8">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-6">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Nombre Completo</label>
+                                        <input autofocus v-model="form.name" type="text" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-3 transition-colors">
+                                        <div v-if="form.errors.name" class="text-red-400 text-xs mt-1 font-bold">{{ form.errors.name }}</div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                                            Contraseña <span class="text-slate-500 lowercase normal-case tracking-normal">{{ isEditing ? '(Opcional)' : '' }}</span>
+                                        </label>
+                                        <input v-model="form.password" type="password" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-3 transition-colors">
+                                        <div v-if="form.errors.password" class="text-red-400 text-xs mt-1 font-bold">{{ form.errors.password }}</div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-6">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Correo Electrónico</label>
+                                        <input v-model="form.email" type="email" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-3 transition-colors">
+                                        <div v-if="form.errors.email" class="text-red-400 text-xs mt-1 font-bold">{{ form.errors.email }}</div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Rol del Sistema</label>
+                                        <select v-model="form.role" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-3 transition-colors custom-select appearance-none">
+                                            <option value="Administrador" class="bg-slate-900">Administrador</option>
+                                            <option value="Supervisor" class="bg-slate-900">Supervisor</option>
+                                            <option value="Capturista" class="bg-slate-900">Capturista</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="md:col-span-2 mt-2">
+                                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Jefe Directo Asignado</label>
+                                    <select v-model="form.parent_id" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-3 transition-colors custom-select appearance-none">
+                                        <option :value="null" class="bg-slate-900 text-slate-400">Sin Jefe Directo / Operación Independiente</option>
+                                        <option v-for="p in availableParents" :key="p.id" :value="p.id" v-show="p.id !== editingId" class="bg-slate-900">
+                                            {{ p.name }} (Nivel: {{ p.role }})
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-950 px-8 py-5 border-t border-slate-800 flex justify-end gap-3">
+                            <button @click="closeModal()" type="button" class="inline-flex justify-center rounded-xl border border-transparent px-6 py-2.5 bg-slate-800 text-sm font-bold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="submit" :disabled="form.processing" class="inline-flex justify-center rounded-xl border border-transparent shadow-lg px-8 py-2.5 bg-indigo-600 text-sm font-bold text-white hover:bg-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all">
+                                {{ isEditing ? 'Guardar Cambios' : 'Registrar Usuario' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup>
@@ -316,18 +324,16 @@ const submitForm = () => {
     }
 };
 
-// Función para confirmar antes de disparar el borrado
 const confirmarEliminacion = (user) => {
     if (confirm(`⚠️ ALERTA\n\n¿Estás seguro de que deseas eliminar a ${user.name}?\nEsta acción no se puede deshacer.`)) {
         router.delete(route('usuarios.destroy', user.id), {
-            preserveScroll: true, // Evita que la página salte hacia arriba al recargar
+            preserveScroll: true,
         });
     }
 };
 </script>
 
 <style scoped>
-/* Oculta la flecha por defecto del select en algunos navegadores para un aspecto más limpio */
 .custom-select::-ms-expand {
     display: none;
 }

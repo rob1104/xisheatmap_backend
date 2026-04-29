@@ -6,131 +6,149 @@
             Control de Expedientes
         </template>
 
-        <div class="max-w-7xl mx-auto">
+        <div class="max-w-7xl mx-auto animate-fade-in-up">
 
-            <div class="sm:flex sm:items-center sm:justify-between mb-8 gap-4">
+            <div class="sm:flex sm:items-center sm:justify-between mb-8 gap-4 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
                 <div class="mb-4 sm:mb-0">
-                    <h3 class="text-lg font-bold text-gray-900">Registro de Capturas</h3>
-                    <p class="mt-1 text-sm text-gray-500">
+                    <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Registro de Capturas
+                    </h3>
+                    <p class="mt-1 text-sm text-slate-400">
                         Consulta, filtra y audita los expedientes enviados por el equipo en campo.
                     </p>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 sm:mt-0 mt-4 flex-1 justify-end">
-                    <div class="relative w-full sm:max-w-xs">
+                    <div class="relative w-full sm:max-w-xs group">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <svg class="h-5 w-5 text-slate-500 group-focus-within:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                         </div>
                         <input
                             v-model="search"
                             type="text"
                             placeholder="Buscar por nombre o clave..."
-                            class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
+                            class="block w-full pl-10 pr-3 py-2 border border-slate-700 rounded-xl leading-5 bg-slate-950 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-200 shadow-inner"
                         >
                     </div>
 
-                    <div class="w-full sm:max-w-xs">
+                    <div class="w-full sm:max-w-xs relative">
                         <select
                             v-model="userId"
-                            class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                            class="block w-full pl-3 pr-10 py-2 border border-slate-700 rounded-xl leading-5 bg-slate-950 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-200 shadow-inner appearance-none custom-select"
                         >
-                            <option value="">Todos los brigadistas</option>
-                            <option v-for="user in users" :key="user.id" :value="user.id">
+                            <option value="" class="bg-slate-900 text-slate-300">Todos los brigadistas</option>
+                            <option v-for="user in users" :key="user.id" :value="user.id" class="bg-slate-900 text-slate-300">
                                 {{ user.name }}
                             </option>
                         </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white shadow-sm ring-1 ring-gray-900 ring-opacity-5 sm:rounded-xl overflow-hidden">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ciudadano</th>
-                        <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Identificación</th>
-                        <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Brigadista</th>
-                        <th scope="col" class="px-3 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Evidencias</th>
-                        <th scope="col" class="px-3 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
-                    </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 bg-white">
-                    <tr v-if="records.data.length === 0">
-                        <td colspan="5" class="py-8 text-center text-gray-500">No se encontraron expedientes.</td>
-                    </tr>
-                    <tr v-for="record in records.data" :key="record.id" class="hover:bg-gray-50 transition-colors">
+            <div class="bg-slate-900 shadow-2xl rounded-2xl border border-slate-800 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-800">
+                        <thead class="bg-slate-900/50">
+                        <tr>
+                            <th scope="col" class="py-4 pl-6 pr-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Ciudadano</th>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Identificación</th>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Brigadista</th>
+                            <th scope="col" class="px-3 py-4 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Evidencias</th>
+                            <th scope="col" class="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">Fecha</th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800 bg-slate-900">
 
-                        <td class="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
-                            <div class="flex items-center">
-                                <div class="h-10 w-10 flex-shrink-0">
-                                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-cyan-600 flex items-center justify-center text-white font-bold shadow-sm">
-                                        {{ record.nombre.charAt(0).toUpperCase() }}
+                        <tr v-if="records.data.length === 0">
+                            <td colspan="5" class="py-12 text-center">
+                                <svg class="mx-auto h-12 w-12 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                                <p class="text-slate-400 font-medium text-sm">No se encontraron expedientes con estos filtros.</p>
+                            </td>
+                        </tr>
+
+                        <tr v-for="record in records.data" :key="record.id" class="hover:bg-slate-800/50 transition-colors group">
+
+                            <td class="whitespace-nowrap py-4 pl-6 pr-3">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 flex-shrink-0">
+                                        <div class="h-10 w-10 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold shadow-lg border border-slate-700 group-hover:scale-105 transition-transform">
+                                            {{ record.nombre.charAt(0).toUpperCase() }}
+                                        </div>
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="font-bold text-slate-200">{{ record.nombre }}</div>
+                                        <div class="text-sm text-slate-500">{{ record.apellido_paterno }} {{ record.apellido_materno }}</div>
                                     </div>
                                 </div>
-                                <div class="ml-4">
-                                    <div class="font-medium text-gray-900">{{ record.nombre }}</div>
-                                    <div class="text-sm text-gray-500">{{ record.apellido_paterno }} {{ record.apellido_materno }}</div>
+                            </td>
+
+                            <td class="whitespace-nowrap px-3 py-4">
+                                <div class="text-xs font-mono text-slate-300 bg-slate-950 border border-slate-700 inline-block px-2.5 py-1 rounded-md shadow-inner">{{ record.clave_elector }}</div>
+                                <div class="text-xs text-indigo-400 mt-1.5 font-bold flex items-center">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                    Sección: {{ record.seccion }}
                                 </div>
-                            </div>
-                        </td>
+                            </td>
 
-                        <td class="whitespace-nowrap px-3 py-4">
-                            <div class="text-sm font-mono text-gray-900 bg-gray-100 inline-block px-2 py-0.5 rounded">{{ record.clave_elector }}</div>
-                            <div class="text-xs text-indigo-600 mt-1 font-medium">Sección: {{ record.seccion }}</div>
-                        </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-slate-400">
+                                <div class="flex items-center">
+                                    <svg class="w-4 h-4 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                    {{ record.user?.name || 'Usuario Eliminado' }}
+                                </div>
+                            </td>
 
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            <div class="flex items-center">
-                                <svg class="w-4 h-4 mr-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                                {{ record.user?.name || 'Usuario Eliminado' }}
-                            </div>
-                        </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-center">
+                                <div class="flex justify-center space-x-2">
+                                    <button
+                                        v-if="record.foto_frente_path"
+                                        @click="openImageModal(record, 'frente', 'Frente - ' + record.clave_elector)"
+                                        class="inline-flex items-center px-3 py-1.5 border border-blue-500/30 text-xs font-bold rounded-lg text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 hover:border-blue-500/50 focus:outline-none transition-all shadow-sm"
+                                    >
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                        Frente
+                                    </button>
 
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-center">
-                            <div class="flex justify-center space-x-2">
-                                <button
-                                    v-if="record.foto_frente_path"
-                                    @click="openImageModal(record, 'frente', 'Frente - ' + record.clave_elector)"
-                                    class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none transition-colors"
-                                >
-                                    Frente
-                                </button>
+                                    <button
+                                        v-if="record.foto_reverso_path"
+                                        @click="openImageModal(record, 'reverso', 'Reverso - ' + record.clave_elector)"
+                                        class="inline-flex items-center px-3 py-1.5 border border-purple-500/30 text-xs font-bold rounded-lg text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 hover:border-purple-500/50 focus:outline-none transition-all shadow-sm"
+                                    >
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                        Reverso
+                                    </button>
+                                    <span v-if="!record.foto_frente_path && !record.foto_reverso_path" class="text-xs font-medium text-slate-600 bg-slate-800 px-2.5 py-1 rounded-md">Sin fotos</span>
+                                </div>
+                            </td>
 
-                                <button
-                                    v-if="record.foto_reverso_path"
-                                    @click="openImageModal(record, 'reverso', 'Reverso - ' + record.clave_elector)"
-                                    class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-purple-700 bg-purple-100 hover:bg-purple-200 focus:outline-none transition-colors"
-                                >
-                                    Reverso
-                                </button>
-                                <span v-if="!record.foto_frente_path && !record.foto_reverso_path" class="text-xs text-gray-400">Sin fotos</span>
-                            </div>
-                        </td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-slate-400">
+                                {{ new Date(record.created_at).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) }}
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                        <td class="whitespace-nowrap px-3 py-4 text-right text-sm text-gray-500">
-                            {{ new Date(record.created_at).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }) }}
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
-
-                <div class="bg-gray-50 px-4 py-3 border-t border-gray-200 sm:px-6" v-if="records.links">
+                <div class="bg-slate-900/50 px-6 py-4 border-t border-slate-800" v-if="records.links">
                     <div class="flex items-center justify-between">
                         <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                             <div>
-                                <p class="text-sm text-gray-700">
-                                    Mostrando <span class="font-medium">{{ records.from || 0 }}</span> a <span class="font-medium">{{ records.to || 0 }}</span> de <span class="font-medium">{{ records.total }}</span> resultados
+                                <p class="text-sm text-slate-400">
+                                    Mostrando <span class="font-bold text-slate-200">{{ records.from || 0 }}</span> a <span class="font-bold text-slate-200">{{ records.to || 0 }}</span> de <span class="font-bold text-slate-200">{{ records.total }}</span> resultados
                                 </p>
                             </div>
                             <div>
-                                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                <nav class="relative z-0 inline-flex rounded-xl shadow-sm -space-x-px overflow-hidden border border-slate-700" aria-label="Pagination">
                                     <Link v-for="(link, k) in records.links" :key="k"
                                           :href="link.url || '#'"
                                           v-html="link.label"
-                                          class="relative inline-flex items-center px-4 py-2 border text-sm font-medium"
+                                          class="relative inline-flex items-center px-4 py-2 text-sm font-bold transition-colors"
                                           :class="[
-                                              link.active ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50',
-                                              !link.url ? 'opacity-50 cursor-not-allowed' : ''
+                                              link.active ? 'z-10 bg-indigo-500/20 border-x border-indigo-500/50 text-indigo-400' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200',
+                                              !link.url ? 'opacity-50 cursor-not-allowed hover:bg-slate-800 hover:text-slate-400' : 'border-r border-slate-700 last:border-r-0'
                                           ]"
                                     />
                                 </nav>
@@ -141,19 +159,18 @@
             </div>
 
             <div v-if="isImageModalOpen" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-gray-900 bg-opacity-90 transition-opacity" @click="isImageModalOpen = false"></div>
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
+                    <div class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm transition-opacity" @click="isImageModalOpen = false"></div>
 
-                    <div class="inline-block align-bottom bg-transparent text-left overflow-hidden transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold text-white">{{ currentImageTitle }}</h3>
-                            <button @click="isImageModalOpen = false" class="text-gray-300 hover:text-white bg-gray-800 rounded-full p-1">
-                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    <div class="relative inline-block align-bottom bg-slate-900 text-left overflow-hidden rounded-2xl shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full border border-slate-700">
+                        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-800 bg-slate-900/50">
+                            <h3 class="text-lg font-bold text-slate-100">{{ currentImageTitle }}</h3>
+                            <button @click="isImageModalOpen = false" class="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-full p-1.5 transition-colors">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
-                        <div class="bg-white rounded-lg overflow-hidden shadow-2xl flex justify-center items-center p-2">
-                            <img :src="currentImageUrl" alt="Evidencia INE" class="max-w-full max-h-[80vh] object-contain rounded" />
+                        <div class="p-6 bg-slate-950 flex justify-center items-center">
+                            <img :src="currentImageUrl" alt="Evidencia INE" class="max-w-full max-h-[70vh] object-contain rounded-xl ring-1 ring-slate-800 shadow-2xl" />
                         </div>
                     </div>
                 </div>
@@ -206,3 +223,10 @@ const openImageModal = (record, tipo, title) => {
     isImageModalOpen.value = true;
 };
 </script>
+
+<style scoped>
+/* Oculta la flecha por defecto del select en algunos navegadores para usar el icono SVG personalizado */
+.custom-select::-ms-expand {
+    display: none;
+}
+</style>

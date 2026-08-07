@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ApoyoController;
 use App\Http\Controllers\Admin\HeatMapController;
 use App\Http\Controllers\Admin\IneRecordController;
 use App\Http\Controllers\Admin\TarjetaController;
@@ -64,6 +65,8 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::put('/tarjetas/{tarjeta}/email', [TarjetaController::class, 'updateEmail'])->name('tarjetas.updateEmail');
     Route::post('/tarjetas/{tarjeta}/reenviar', [TarjetaController::class, 'reenviarCorreo'])->name('tarjetas.reenviar');
     Route::delete('/expedientes/{record}', [IneRecordController::class, 'destroy'])->name('expedientes.destroy');
+
+    Route::resource('apoyos', ApoyoController::class)->except(['create', 'show', 'edit']);
 
     // ---------------------------------------------------
     // RUTAS DE PERFIL (Generadas por Breeze)

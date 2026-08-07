@@ -39,6 +39,11 @@
                         Brigadistas
                     </button>
 
+                    <button @click="toggleApoyos" :class="viendoApoyos ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white border-gray-300 text-gray-700'" class="px-4 py-2 border rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+                        <div :class="viendoApoyos ? 'bg-amber-500 animate-pulse' : 'bg-gray-300'" class="w-2 h-2 rounded-full"></div>
+                        Apoyos
+                    </button>
+
                     <button @click="changeRadius" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-semibold transition-colors">
                         Radio
                     </button>
@@ -66,6 +71,7 @@ import axios from 'axios'
 
 const props = defineProps({
     coordenadas: Array,
+    apoyos: Array,
     googleApiKey: String
 })
 
@@ -76,13 +82,15 @@ const cargando = ref(true)
 const puntosVisibles = ref(props.coordenadas.length)
 const viendoSimpatizantes = ref(true)
 const viendoBrigadistas = ref(false)
+const viendoApoyos = ref(false)
 
 let map = null
 let heatmap = null
 let heatMapData = []
 
-// Variables para brigadistas
+// Variables para brigadistas y apoyos
 let marcadoresBrigadistas = {}
+let marcadoresApoyos = []
 let intervaloRastreo = null
 
 const initMap = () => {
@@ -198,6 +206,64 @@ const toggleBrigadistas = () => {
     }
 }
 
+const toggleApoyos = () => {
+    viendoApoyos.value = !viendoApoyos.value;
+    
+    if (viendoApoyos.value) {
+        renderizarApoyos();
+    } else {
+        marcadoresApoyos.forEach(marker => marker.map = null);
+        marcadoresApoyos = [];
+    }
+}
+
+const renderizarApoyos = () => {
+    if (!props.apoyos) {
+        console.warn("No hay apoyos en props");
+        return;
+    }
+    
+    console.log("Renderizando " + props.apoyos.length + " apoyos");
+
+    props.apoyos.forEach(apoyo => {
+        const posicion = new window.google.maps.LatLng(parseFloat(apoyo.latitud), parseFloat(apoyo.longitud));
+        const isAtendido = apoyo.estatus_de_apoyo === 'Atendido';
+        
+        const pinElement = document.createElement('div');
+        pinElement.className = 'relative flex flex-col items-center justify-center cursor-pointer';
+        
+        let checkmarkSvg = '';
+        if (isAtendido) {
+            checkmarkSvg = `
+                <div class="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+            `;
+        }
+
+        pinElement.innerHTML = `
+            ${checkmarkSvg}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#F59E0B" stroke="#78350F" stroke-width="1.5" class="w-10 h-10 drop-shadow-lg">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+            </svg>
+            <div class="absolute top-10 bg-white px-2 py-1 rounded shadow-md border border-gray-200 text-xs font-bold text-amber-900 whitespace-nowrap z-10 opacity-0 hover:opacity-100 transition-opacity">
+                ${apoyo.nombre} - ${apoyo.apoyo}
+            </div>
+        `;
+
+        const marker = new window.google.maps.marker.AdvancedMarkerElement({
+            position: posicion,
+            map: map,
+            content: pinElement,
+            title: `${apoyo.nombre} (${apoyo.estatus_de_apoyo})`
+        });
+
+        marcadoresApoyos.push(marker);
+    });
+}
+
 const toggleHeatmap = () => {
     if (heatmap) {
         heatmap.setMap(heatmap.getMap() ? null : map)
@@ -218,10 +284,10 @@ onMounted(() => {
         return
     }
 
-    // Un solo montaje del script con las librerías correctas
+    // Un solo montaje del script con las librerías correctas, forzando la versión 3.64
     window.initGoogleMap = initMap
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${props.googleApiKey}&libraries=visualization,marker&callback=initGoogleMap`
+    script.src = `https://maps.googleapis.com/maps/api/js?v=3.64&key=${props.googleApiKey}&libraries=visualization,marker&callback=initGoogleMap`
     script.async = true
     script.defer = true
     document.head.appendChild(script)
@@ -230,5 +296,11 @@ onMounted(() => {
 onUnmounted(() => {
     delete window.initGoogleMap
     if (intervaloRastreo) clearInterval(intervaloRastreo)
+    
+    // Limpiar marcadores de apoyos si quedaron activos
+    if (marcadoresApoyos.length > 0) {
+        marcadoresApoyos.forEach(marker => marker.map = null);
+        marcadoresApoyos = [];
+    }
 })
 </script>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\IneRecord;
+use App\Models\Apoyo;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -17,8 +18,14 @@ class HeatMapController extends Controller
             ->select('latitud', 'longitud', 'colonia', 'seccion')
             ->get();
 
+        $apoyos = Apoyo::whereNotNull('latitud')
+            ->whereNotNull('longitud')
+            ->select('id', 'latitud', 'longitud', 'nombre', 'estatus_de_apoyo', 'apoyo')
+            ->get();
+
         return Inertia::render('Admin/HeatMap/Index', [
             'coordenadas' => $coordenadas,
+            'apoyos' => $apoyos,
             // Pasamos la llave de forma segura desde el .env a la vista
             'googleApiKey' => config('services.google_maps.api_key')
         ]);

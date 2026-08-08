@@ -67,6 +67,7 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::delete('/expedientes/{record}', [IneRecordController::class, 'destroy'])->name('expedientes.destroy');
 
     Route::resource('apoyos', ApoyoController::class)->except(['create', 'show', 'edit']);
+    Route::post('/apoyos/{apoyo}/toggle-status', [ApoyoController::class, 'toggleStatus'])->name('apoyos.toggle-status');
 
     // ---------------------------------------------------
     // RUTAS DE PERFIL (Generadas por Breeze)

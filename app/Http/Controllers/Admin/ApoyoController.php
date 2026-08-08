@@ -42,7 +42,11 @@ class ApoyoController extends Controller
             'estatus_de_apoyo' => 'required|string|max:255',
         ]);
 
-        Apoyo::create($validated);
+        $apoyo = Apoyo::create($validated);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'apoyo' => $apoyo]);
+        }
 
         return redirect()->back()->with('success', 'Apoyo registrado correctamente.');
     }
@@ -65,10 +69,27 @@ class ApoyoController extends Controller
         return redirect()->back()->with('success', 'Apoyo actualizado correctamente.');
     }
 
-    public function destroy(Apoyo $apoyo)
+    public function destroy(Request $request, Apoyo $apoyo)
     {
         $apoyo->delete();
 
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
         return redirect()->back()->with('success', 'Apoyo eliminado correctamente.');
+    }
+
+    public function toggleStatus(Request $request, Apoyo $apoyo)
+    {
+        $request->validate([
+            'estatus_de_apoyo' => 'required|string'
+        ]);
+
+        $apoyo->update([
+            'estatus_de_apoyo' => $request->estatus_de_apoyo
+        ]);
+
+        return response()->json(['success' => true, 'apoyo' => $apoyo]);
     }
 }

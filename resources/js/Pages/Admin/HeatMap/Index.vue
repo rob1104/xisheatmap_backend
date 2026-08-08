@@ -21,10 +21,18 @@
                         </div>
                     </div>
 
-                    <div class="bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-lg flex items-center shadow-inner w-full sm:w-auto justify-center">
-                        <span class="text-xs text-indigo-800 font-bold uppercase tracking-wider mr-3">En esta vista:</span>
-                        <span class="text-2xl font-extrabold text-indigo-600">{{ puntosVisibles }}</span>
-                        <span class="text-xs text-indigo-500 ml-2">simpatizantes</span>
+                    <div class="bg-white border border-gray-200 px-4 py-2 rounded-lg flex items-center shadow-sm w-full sm:w-auto justify-center gap-4">
+                        <span class="text-xs text-gray-800 font-bold uppercase tracking-wider">En esta vista:</span>
+                        
+                        <div v-if="viendoSimpatizantes" class="flex items-baseline bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                            <span class="text-xl font-extrabold text-indigo-600">{{ puntosVisibles }}</span>
+                            <span class="text-xs text-indigo-600 ml-1 font-semibold">simpatizantes</span>
+                        </div>
+
+                        <div v-if="viendoApoyos" class="flex items-baseline bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                            <span class="text-xl font-extrabold text-amber-600">{{ apoyosVisibles }}</span>
+                            <span class="text-xs text-amber-600 ml-1 font-semibold">apoyos</span>
+                        </div>
                     </div>
                 </div>
 
@@ -60,13 +68,79 @@
             </div>
 
         </div>
+
+        <Modal :show="mostrarModalApoyo" @close="cerrarModalApoyo">
+            <div class="p-6">
+                <h2 class="text-lg font-medium text-gray-900 mb-4">
+                    Registrar Nuevo Apoyo
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <InputLabel for="nombre" value="Nombre del Solicitante" />
+                        <TextInput id="nombre" ref="nombreInput" v-model="formApoyo.nombre" type="text" class="mt-1 block w-full" />
+                        <InputError :message="formApoyo.errors.nombre ? formApoyo.errors.nombre[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="telefono" value="Teléfono" />
+                        <TextInput id="telefono" v-model="formApoyo.telefono" type="text" class="mt-1 block w-full" />
+                        <InputError :message="formApoyo.errors.telefono ? formApoyo.errors.telefono[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="colonia" value="Colonia" />
+                        <TextInput id="colonia" v-model="formApoyo.colonia" type="text" class="mt-1 block w-full" />
+                        <InputError :message="formApoyo.errors.colonia ? formApoyo.errors.colonia[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="calle" value="Calle y Número" />
+                        <TextInput id="calle" v-model="formApoyo.calle_y_numero" type="text" class="mt-1 block w-full" />
+                        <InputError :message="formApoyo.errors.calle_y_numero ? formApoyo.errors.calle_y_numero[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <InputLabel for="apoyo" value="Apoyo Solicitado" />
+                        <TextInput id="apoyo" v-model="formApoyo.apoyo" type="text" class="mt-1 block w-full" />
+                        <InputError :message="formApoyo.errors.apoyo ? formApoyo.errors.apoyo[0] : ''" class="mt-2" />
+                    </div>
+                    
+                    <div>
+                        <InputLabel for="estatus" value="Estatus" />
+                        <select id="estatus" v-model="formApoyo.estatus_de_apoyo" class="mt-1 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm w-full">
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="Atendido">Atendido</option>
+                        </select>
+                        <InputError :message="formApoyo.errors.estatus_de_apoyo ? formApoyo.errors.estatus_de_apoyo[0] : ''" class="mt-2" />
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <SecondaryButton @click="cerrarModalApoyo">
+                        Cancelar
+                    </SecondaryButton>
+
+                    <PrimaryButton class="ml-3" :class="{ 'opacity-25': formApoyo.processing }" :disabled="formApoyo.processing" @click="guardarApoyo">
+                        Guardar Apoyo
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
+
     </AdminLayout>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
+import Modal from '@/Components/Modal.vue'
+import TextInput from '@/Components/TextInput.vue'
+import InputLabel from '@/Components/InputLabel.vue'
+import InputError from '@/Components/InputError.vue'
+import PrimaryButton from '@/Components/PrimaryButton.vue'
+import SecondaryButton from '@/Components/SecondaryButton.vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -80,6 +154,7 @@ const cargando = ref(true)
 
 // Variables reactivas
 const puntosVisibles = ref(props.coordenadas.length)
+const apoyosVisibles = ref(props.apoyos ? props.apoyos.length : 0)
 const viendoSimpatizantes = ref(true)
 const viendoBrigadistas = ref(false)
 const viendoApoyos = ref(false)
@@ -92,12 +167,66 @@ let heatMapData = []
 let marcadoresBrigadistas = {}
 let marcadoresApoyos = []
 let intervaloRastreo = null
+let infoWindow = null
+let contextMenu = null
+let geocoder = null
+
+const mostrarModalApoyo = ref(false)
+const nombreInput = ref(null)
+const formApoyo = reactive({
+    nombre: '',
+    telefono: '',
+    colonia: '',
+    calle_y_numero: '',
+    latitud: '',
+    longitud: '',
+    apoyo: '',
+    estatus_de_apoyo: 'Pendiente',
+    processing: false,
+    errors: {}
+})
+
+const cerrarModalApoyo = () => {
+    mostrarModalApoyo.value = false;
+    formApoyo.errors = {};
+}
+
+const guardarApoyo = async () => {
+    formApoyo.processing = true;
+    formApoyo.errors = {};
+    
+    try {
+        const res = await axios.post('/apoyos', formApoyo, {
+            headers: { 'Accept': 'application/json' }
+        });
+        
+        if (res.data.success) {
+            const nuevoApoyo = res.data.apoyo;
+            props.apoyos.push(nuevoApoyo);
+            
+            if (viendoApoyos.value) {
+                agregarUnMarcador(nuevoApoyo);
+                if (map) window.google.maps.event.trigger(map, 'idle');
+            }
+            cerrarModalApoyo();
+        }
+    } catch (error) {
+        if (error.response && error.response.status === 422) {
+            formApoyo.errors = error.response.data.errors;
+        }
+        console.error(error);
+    } finally {
+        formApoyo.processing = false;
+    }
+}
 
 const initMap = () => {
     let centerLat = 23.7369
     let centerLng = -99.1411
+    
+    geocoder = new window.google.maps.Geocoder();
 
-    if (props.coordenadas.length > 0) {
+    if (props.coordenadas && props.coordenadas.length > 0) {
         centerLat = parseFloat(props.coordenadas[0].latitud)
         centerLng = parseFloat(props.coordenadas[0].longitud)
     }
@@ -132,12 +261,115 @@ const initMap = () => {
     map.addListener('idle', () => {
         const bounds = map.getBounds()
         if (!bounds) return
-        let count = 0
-        heatMapData.forEach(point => {
-            if (bounds.contains(point)) count++
-        })
-        puntosVisibles.value = count
+        
+        // Conteo de Simpatizantes
+        let countSimpatizantes = 0
+        if (viendoSimpatizantes.value) {
+            heatMapData.forEach(point => {
+                if (bounds.contains(point)) countSimpatizantes++
+            })
+        }
+        puntosVisibles.value = countSimpatizantes
+
+        // Conteo de Apoyos
+        let countApoyos = 0
+        if (viendoApoyos.value) {
+            marcadoresApoyos.forEach(marker => {
+                if (bounds.contains(marker.position)) countApoyos++
+            })
+        }
+        apoyosVisibles.value = countApoyos
     })
+
+    contextMenu = new window.google.maps.InfoWindow();
+
+    map.addListener('contextmenu', (e) => {
+        if (!viendoApoyos.value) return;
+
+        const lat = e.latLng.lat();
+        const lng = e.latLng.lng();
+
+        const contentString = `
+            <div class="p-1">
+                <button id="btn-add-context" class="w-full text-white text-xs px-4 py-2 rounded font-semibold shadow-sm transition-colors bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Registrar Apoyo Aquí
+                </button>
+            </div>
+        `;
+
+        contextMenu.setContent(contentString);
+        contextMenu.setPosition(e.latLng);
+        contextMenu.open(map);
+
+        setTimeout(() => {
+            const btn = document.getElementById('btn-add-context');
+            if (btn) {
+                btn.addEventListener('click', async () => {
+                    contextMenu.close();
+                    
+                    formApoyo.nombre = '';
+                    formApoyo.telefono = '';
+                    formApoyo.colonia = 'Buscando...';
+                    formApoyo.calle_y_numero = 'Buscando...';
+                    formApoyo.apoyo = '';
+                    formApoyo.latitud = lat;
+                    formApoyo.longitud = lng;
+                    formApoyo.estatus_de_apoyo = 'Pendiente';
+                    
+                    mostrarModalApoyo.value = true;
+                    
+                    // Geocoding reverso
+                    try {
+                        const response = await geocoder.geocode({ location: { lat, lng } });
+                        if (response.results && response.results.length > 0) {
+                            const result = response.results[0];
+                            let route = '';
+                            let streetNumber = '';
+                            let neighborhood = '';
+
+                            result.address_components.forEach(component => {
+                                if (component.types.includes('route')) {
+                                    route = component.long_name;
+                                }
+                                if (component.types.includes('street_number')) {
+                                    streetNumber = component.long_name;
+                                }
+                                if (component.types.includes('sublocality') || component.types.includes('sublocality_level_1') || component.types.includes('neighborhood')) {
+                                    neighborhood = component.long_name;
+                                }
+                            });
+
+                            if (route || streetNumber) {
+                                formApoyo.calle_y_numero = route + (streetNumber ? ' ' + streetNumber : '');
+                            } else {
+                                formApoyo.calle_y_numero = '';
+                            }
+                            
+                            if (neighborhood) {
+                                formApoyo.colonia = neighborhood;
+                            } else {
+                                formApoyo.colonia = '';
+                            }
+                        } else {
+                            formApoyo.calle_y_numero = '';
+                            formApoyo.colonia = '';
+                        }
+                    } catch (error) {
+                        console.warn("Error en geocodificación inversa", error);
+                        formApoyo.calle_y_numero = '';
+                        formApoyo.colonia = '';
+                    }
+                    
+                    nextTick(() => {
+                        if (nombreInput.value) {
+                            nombreInput.value.focus();
+                        }
+                    });
+                });
+            }
+        }, 100);
+    });
 
     cargando.value = false
 }
@@ -215,7 +447,157 @@ const toggleApoyos = () => {
         marcadoresApoyos.forEach(marker => marker.map = null);
         marcadoresApoyos = [];
     }
+    // Forzar actualización de conteo
+    if (map) window.google.maps.event.trigger(map, 'idle')
 }
+
+const buildPinHtml = (apoyo) => {
+    const isAtendido = apoyo.estatus_de_apoyo === 'Atendido';
+    let checkmarkSvg = '';
+    if (isAtendido) {
+        checkmarkSvg = `
+            <div class="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white shadow-md z-20">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+            </div>
+        `;
+    }
+
+    return `
+        ${checkmarkSvg}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#F59E0B" stroke="#78350F" stroke-width="1.5" class="w-10 h-10 drop-shadow-lg relative z-10 transition-transform duration-200 hover:scale-110">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+        </svg>
+        <div class="absolute top-11 bg-slate-900 text-white px-3 py-1.5 rounded-lg shadow-xl border border-slate-700 text-xs font-bold whitespace-nowrap z-30 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none mt-1">
+            ${apoyo.nombre} <br/> <span class="text-amber-400 font-medium">${apoyo.apoyo}</span>
+        </div>
+    `;
+};
+
+const agregarUnMarcador = (apoyo) => {
+    if (!infoWindow) {
+        infoWindow = new window.google.maps.InfoWindow();
+    }
+    
+    const posicion = new window.google.maps.LatLng(parseFloat(apoyo.latitud), parseFloat(apoyo.longitud));
+    
+    const pinElement = document.createElement('div');
+    pinElement.className = 'relative flex flex-col items-center justify-center cursor-pointer group';
+    pinElement.innerHTML = buildPinHtml(apoyo);
+
+    const marker = new window.google.maps.marker.AdvancedMarkerElement({
+        position: posicion,
+        map: map,
+        content: pinElement,
+        title: ''
+    });
+
+    marker.addListener('click', () => {
+        const isAtendido = apoyo.estatus_de_apoyo === 'Atendido';
+        const nextStatus = isAtendido ? 'Pendiente' : 'Atendido';
+        const btnColor = isAtendido ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600';
+        const btnText = isAtendido ? 'Marcar como Pendiente' : 'Marcar como Atendido';
+        
+        const contentString = `
+            <div class="p-2 text-slate-800" style="min-width: 150px;">
+                <h3 class="font-bold text-sm mb-1 text-indigo-900">${apoyo.nombre}</h3>
+                <p class="text-xs mb-3 text-slate-600">Estatus: <span class="font-bold ${isAtendido ? 'text-emerald-600' : 'text-amber-600'}">${apoyo.estatus_de_apoyo}</span></p>
+                <button id="btn-toggle-${apoyo.id}" class="w-full text-white text-xs px-3 py-2 rounded font-semibold shadow-sm transition-colors cursor-pointer ${btnColor}">
+                    ${btnText}
+                </button>
+            </div>
+        `;
+        
+        infoWindow.setContent(contentString);
+        infoWindow.open({
+            anchor: marker,
+            map,
+        });
+
+        setTimeout(() => {
+            const btn = document.getElementById(`btn-toggle-${apoyo.id}`);
+            if (btn) {
+                btn.addEventListener('click', async () => {
+                    btn.disabled = true;
+                    btn.innerText = 'Actualizando...';
+                    try {
+                        const res = await axios.post(`/apoyos/${apoyo.id}/toggle-status`, {
+                            estatus_de_apoyo: nextStatus
+                        }, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (res.data.success) {
+                            apoyo.estatus_de_apoyo = nextStatus;
+                            pinElement.innerHTML = buildPinHtml(apoyo);
+                            infoWindow.close();
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        btn.disabled = false;
+                        btn.innerText = 'Error';
+                    }
+                });
+            }
+        }, 100);
+    });
+
+    pinElement.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const contentString = `
+            <div class="p-1">
+                <button id="btn-delete-${apoyo.id}" class="w-full text-white text-xs px-4 py-2 rounded font-semibold shadow-sm transition-colors bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    Eliminar Apoyo
+                </button>
+            </div>
+        `;
+        
+        contextMenu.setContent(contentString);
+        contextMenu.open({
+            anchor: marker,
+            map: map
+        });
+
+        setTimeout(() => {
+            const btn = document.getElementById(`btn-delete-${apoyo.id}`);
+            if (btn) {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('¿Estás seguro de eliminar este apoyo?')) {
+                        contextMenu.close();
+                        return;
+                    }
+                    
+                    btn.disabled = true;
+                    btn.innerText = 'Eliminando...';
+                    try {
+                        const res = await axios.delete(`/apoyos/${apoyo.id}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (res.data.success) {
+                            marker.map = null;
+                            marcadoresApoyos = marcadoresApoyos.filter(m => m !== marker);
+                            const index = props.apoyos.findIndex(a => a.id === apoyo.id);
+                            if (index !== -1) {
+                                props.apoyos.splice(index, 1);
+                            }
+                            contextMenu.close();
+                            if (map) window.google.maps.event.trigger(map, 'idle');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        btn.disabled = false;
+                        btn.innerText = 'Error';
+                    }
+                });
+            }
+        }, 100);
+    });
+
+    marcadoresApoyos.push(marker);
+};
 
 const renderizarApoyos = () => {
     if (!props.apoyos) {
@@ -226,41 +608,7 @@ const renderizarApoyos = () => {
     console.log("Renderizando " + props.apoyos.length + " apoyos");
 
     props.apoyos.forEach(apoyo => {
-        const posicion = new window.google.maps.LatLng(parseFloat(apoyo.latitud), parseFloat(apoyo.longitud));
-        const isAtendido = apoyo.estatus_de_apoyo === 'Atendido';
-        
-        const pinElement = document.createElement('div');
-        pinElement.className = 'relative flex flex-col items-center justify-center cursor-pointer';
-        
-        let checkmarkSvg = '';
-        if (isAtendido) {
-            checkmarkSvg = `
-                <div class="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-white shadow-md">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                    </svg>
-                </div>
-            `;
-        }
-
-        pinElement.innerHTML = `
-            ${checkmarkSvg}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#F59E0B" stroke="#78350F" stroke-width="1.5" class="w-10 h-10 drop-shadow-lg">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-            </svg>
-            <div class="absolute top-10 bg-white px-2 py-1 rounded shadow-md border border-gray-200 text-xs font-bold text-amber-900 whitespace-nowrap z-10 opacity-0 hover:opacity-100 transition-opacity">
-                ${apoyo.nombre} - ${apoyo.apoyo}
-            </div>
-        `;
-
-        const marker = new window.google.maps.marker.AdvancedMarkerElement({
-            position: posicion,
-            map: map,
-            content: pinElement,
-            title: `${apoyo.nombre} (${apoyo.estatus_de_apoyo})`
-        });
-
-        marcadoresApoyos.push(marker);
+        agregarUnMarcador(apoyo);
     });
 }
 
@@ -268,6 +616,8 @@ const toggleHeatmap = () => {
     if (heatmap) {
         heatmap.setMap(heatmap.getMap() ? null : map)
         viendoSimpatizantes.value = heatmap.getMap() !== null
+        // Forzar actualización de conteo
+        if (map) window.google.maps.event.trigger(map, 'idle')
     }
 }
 

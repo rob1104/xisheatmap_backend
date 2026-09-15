@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\IneRecord;
 use App\Models\User;
@@ -32,7 +33,7 @@ class IneRecordController extends Controller
         return Inertia::render('Admin/IneRecords/Index', [
             'records' => $query->latest()->paginate(10)->withQueryString(),
             'filters' => $request->only(['search', 'user_id']),
-            'users' => User::where('role', 'Capturista')->select('id', 'name')->get()
+            'users' => User::where('role', UserRole::GESTOR_SECCIONAL)->select('id', 'name')->get()
         ]);
     }
 
@@ -66,7 +67,7 @@ class IneRecordController extends Controller
     public function destroy(IneRecord $record)
     {
         // Verificamos el rol directamente
-        if (auth()->user()->role !== 'Administrador') {
+        if (auth()->user()->role !== UserRole::ADMINISTRADOR) {
             return back()->with('error', 'No tienes permisos para eliminar expedientes.');
         }
 

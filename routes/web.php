@@ -56,6 +56,7 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
 
     Route::get('/usuarios', [UserController::class, 'index'])->name('usuarios.index');
+    Route::get('/organigrama', [UserController::class, 'organigrama'])->name('usuarios.organigrama');
     Route::post('/usuarios', [UserController::class, 'store'])->name('usuarios.store');
     Route::put('/usuarios/{user}', [UserController::class, 'update'])->name('usuarios.update');
     Route::delete('/usuarios/{user}', [UserController::class, 'destroy'])->name('usuarios.destroy');

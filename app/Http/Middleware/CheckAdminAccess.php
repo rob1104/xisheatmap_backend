@@ -14,8 +14,13 @@ class CheckAdminAccess
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Solo Administrador y Coordinador de sector pueden acceder
-        $rolesPermitidos = [UserRole::ADMINISTRADOR, UserRole::COORDINADOR_SECTOR];
+        // Administrador, Coordinador de sector, Gestor seccional y Presidente de comité pueden acceder
+        $rolesPermitidos = [
+            UserRole::ADMINISTRADOR,
+            UserRole::COORDINADOR_SECTOR,
+            UserRole::GESTOR_SECCIONAL,
+            UserRole::PRESIDENTE_COMITE
+        ];
 
         if (auth()->check() && !in_array(auth()->user()->role, $rolesPermitidos)) {
             abort(403, 'Acceso restringido. Tu rol actual es: ' . auth()->user()->role->value);

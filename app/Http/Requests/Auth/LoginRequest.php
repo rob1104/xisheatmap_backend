@@ -70,7 +70,14 @@ class LoginRequest extends FormRequest
         $user = Auth::user();
         $rolEnum = $user->role;
 
-        if ($rolEnum !== \App\Enums\UserRole::ADMINISTRADOR && $rolEnum !== \App\Enums\UserRole::COORDINADOR_SECTOR) {
+        $allowedRoles = [
+            \App\Enums\UserRole::ADMINISTRADOR,
+            \App\Enums\UserRole::COORDINADOR_SECTOR,
+            \App\Enums\UserRole::GESTOR_SECCIONAL,
+            \App\Enums\UserRole::PRESIDENTE_COMITE
+        ];
+
+        if (!in_array($rolEnum, $allowedRoles)) {
             Auth::logout(); // Lo sacamos porque no tiene permiso
 
             throw ValidationException::withMessages([

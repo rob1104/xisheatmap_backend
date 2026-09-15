@@ -39,6 +39,22 @@ class SyncController extends Controller
 
         $token = $user->createToken('quasar_app')->plainTextToken;
 
+        // Validar que el rol corresponda a usuarios de campo (niveles 2 al 5)
+        $rolEnum = $user->role;
+        if ($rolEnum === \App\Enums\UserRole::ADMINISTRADOR || $rolEnum === \App\Enums\UserRole::COORDINADOR_SECTOR) {
+            activity()
+                ->event('alerta_seguridad')
+                ->withProperties([
+                    'email_intentado' => $request->email,
+                    'ip' => $request->ip(),
+                    'dispositivo' => 'App Android',
+                    'navegador' => $userAgent,
+                    'razon' => "Acceso denegado a la App. Rol no permitido: {$rolEnum->value}"
+                ])
+                ->log('Intento de inicio de sesión fallido por rol incorrecto');
+                
+            return response()->json(['message' => "Acceso denegado. Tu rol ({$rolEnum->value}) pertenece al panel web, no a la aplicación móvil."], 403);
+        }
         // --- Extraer información del dispositivo ---
 
         // Expresión regular sencilla para detectar si es un dispositivo móvil

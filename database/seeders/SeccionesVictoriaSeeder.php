@@ -57,7 +57,8 @@ class SeccionesVictoriaSeeder extends Seeder
                 $geomJson = json_encode($geom);
 
                 // Insertamos o actualizamos usando SQL nativo para asignar el campo GEOMETRY con SRID 4326
-                $affected = DB::statement("
+                // Usamos affectingStatement para obtener el número de filas afectadas (1: insertado, 2: actualizado, 0: sin cambios)
+                $affected = DB::affectingStatement("
                     INSERT INTO secciones_electorales 
                         (entidad, municipio, seccion, distrito_federal, distrito_local, tipo, control, poligono, created_at, updated_at)
                     VALUES 

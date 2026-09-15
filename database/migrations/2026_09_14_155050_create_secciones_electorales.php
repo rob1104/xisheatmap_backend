@@ -16,17 +16,17 @@ return new class extends Migration
 
             // Jerarquía administrativa INE
             $table->unsignedTinyInteger('entidad')->default(28);            // 28 = Tamaulipas
-            $table->unsignedSmallInterger('municipio')->default(41);        // 41 = Victoria
+            $table->unsignedSmallInteger('municipio')->default(41);        // 41 = Victoria
             $table->string('seccion', 4)->index();                          // ej. "1563"
-            $table->unsignedTinyInterger('distrito_federal')->nullable();   // ej. 5
-            $table->unsignedTinyInterger('distrito_local')->nullable();     // ej. 14 o 15
-            $table->unsignedTinyInterger('tipo')->nullable();               // 2: Urbana, 1:
+            $table->unsignedTinyInteger('distrito_federal')->nullable();   // ej. 5
+            $table->unsignedTinyInteger('distrito_local')->nullable();     // ej. 14 o 15
+            $table->unsignedTinyInteger('tipo')->nullable();               // 2: Urbana, 1:
 
             $table->unsignedInteger('control')->nullable();
 
             // Geometria espacial WGS84 (EPSG:4326)
             // Se usa GEOMETRY para soportar tanto Polygon como MultiPolygon (enclaves/islas)
-            $table->geometry('poligono', scrid: 4326);
+            $table->geometry('poligono', srid: 4326);
 
             // Índice espacial para accelerar ST_Contains / ST_Within
             $table->spatialIndex('poligono');

@@ -125,22 +125,30 @@ class UserController extends Controller
 
         if ($expectedParentLevel === null) {
             if ($parentId !== null) {
-                abort(422, "El rol {$role->value} no debe tener un superior asignado.");
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'parent_id' => "El rol {$role->value} no debe tener un superior asignado."
+                ]);
             }
             return;
         }
 
         if ($parentId === null) {
-            abort(422, "El rol {$role->value} requiere tener un superior asignado.");
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'parent_id' => "El rol {$role->value} requiere tener un superior asignado."
+            ]);
         }
 
         $parent = User::find($parentId);
         if (!$parent) {
-            abort(422, "El superior seleccionado no existe.");
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'parent_id' => "El superior seleccionado no existe."
+            ]);
         }
 
         if ($parent->role->level() !== $expectedParentLevel) {
-            abort(422, "El superior de un {$role->value} debe ser de nivel inmediato superior.");
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'parent_id' => "El superior de un {$role->value} debe ser de nivel inmediato superior."
+            ]);
         }
     }
 

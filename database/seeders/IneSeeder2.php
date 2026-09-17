@@ -24,6 +24,9 @@ class IneSeeder2 extends Seeder
             'Amalia G. de Castillo Ledón', 'Fuego Nuevo', 'Teocaltiche', 'Corregidora'
         ];
 
+        // Obtenemos las secciones electorales reales de Victoria si ya están en base de datos
+        $seccionesVictoria = \App\Models\SeccionElectoral::where('municipio', 41)->pluck('seccion')->toArray();
+
         for ($i = 0; $i < 700; $i++) {
             // Clave de Elector simulada
             $claveElector = strtoupper(
@@ -47,7 +50,7 @@ class IneSeeder2 extends Seeder
                 'codigo_postal'    => $faker->numberBetween(87000, 87099), // CP de Victoria
                 'municipio'        => 'VICTORIA',
                 'estado'           => 'TAMPS',
-                'seccion'          => (string) $faker->numberBetween(1000, 1500),
+                'seccion'          => !empty($seccionesVictoria) ? $faker->randomElement($seccionesVictoria) : (string) $faker->numberBetween(1563, 2264),
                 'vigencia'         => (string) $faker->numberBetween(2024, 2034),
 
                 // Coordenadas estrictas para la mancha urbana de Ciudad Victoria

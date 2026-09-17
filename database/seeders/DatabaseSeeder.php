@@ -15,11 +15,15 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
+        // Usuario inicial de prueba
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
+        ]);
+
+        // Carga de las 170 secciones electorales de Ciudad Victoria (INE)
+        $this->call([
+            SeccionesVictoriaSeeder::class,
         ]);
     }
 }

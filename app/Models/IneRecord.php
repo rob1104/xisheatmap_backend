@@ -56,6 +56,11 @@ class IneRecord extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function seccionElectoral()
+    {
+        return $this->belongsTo(SeccionElectoral::class, 'seccion', 'seccion');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

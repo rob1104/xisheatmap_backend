@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
-class SeccionElectoral extends Model 
+class SeccionElectoral extends Model
 {
     use HasFactory;
 
@@ -68,19 +68,27 @@ class SeccionElectoral extends Model
     {
         return $this->scopeSelectGeoJson($query);
     }
-    
+
     /**
      * Scope geoespacial: Determinar en qué sección electoral cae un punto GPS (Point in Polygon).
      *
      * IMPORTANTE: En MySQL 8.0 con SRID 4326 y 'axis-order=long-lat', el formato de POINT WKT es (longitud latitud).
      */
-    public function scopeContainingPoint($query, float $latitud, float $longitud)
-    {
-        return $query->whereRaw(
-            "ST_Contains(poligono, ST_GeomFromText(?, 4326, 'axis-order=long-lat'))",
-            ["POINT({$longitud} {$latitud})"]
-        );
-    }
+    public function scopeContainingPoint(
+    $query,
+    float $latitud,
+    float $longitud
+) {
+    $point = "POINT({$longitud} {$latitud})";
+
+    return $query->whereRaw(
+        "ST_Contains(
+            poligono,
+            ST_GeomFromText(?, 4326)
+        )",
+        [$point]
+    );
+}
 
     /**
      * Scope para filtrar por municipio (por defecto 41 - Victoria).

@@ -33,6 +33,10 @@ class SeccionElectoral extends Model
         'control'          => 'integer',
     ];
 
+    protected $hidden = [
+        'poligono',
+    ];
+
     /**
      * Relación atributiva directa con la INE capturada.
      */

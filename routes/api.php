@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\SpatialController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -21,7 +22,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // La app envía (POST)
     Route::post('/ubicacion-brigadista', [TrackingController::class, 'reportarUbicacion']);
 
-
 });
+
+Route::get('/spatial/secciones-geojson', [SpatialController::class, 'seccionesGeoJson']);
+Route::post('/spatial/locate-point', [SpatialController::class, 'locatePoint']);
+Route::get('/spatial/audit-summary', [SpatialController::class, 'auditSummary']);
+
 
 

@@ -19,11 +19,13 @@ class DatabaseSeeder extends Seeder
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'role' => 'Administrador'
         ]);
 
         // Carga de las 170 secciones electorales de Ciudad Victoria (INE)
         $this->call([
             SeccionesVictoriaSeeder::class,
+            IneSeeder2::class
         ]);
     }
 }

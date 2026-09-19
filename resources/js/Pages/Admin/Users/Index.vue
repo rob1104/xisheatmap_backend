@@ -15,7 +15,11 @@
                         Gestiona administradores, supervisores y la red de capturistas en campo.
                     </p>
                 </div>
-                <div class="mt-4 sm:mt-0">
+                <div class="mt-4 sm:mt-0 space-x-3 flex">
+                    <Link :href="route('usuarios.organigrama')" class="inline-flex items-center justify-center px-4 py-2.5 border border-slate-700 text-sm font-bold rounded-xl shadow-sm text-slate-300 bg-slate-800 hover:bg-slate-700 focus:outline-none transition-all">
+                        <svg class="w-5 h-5 mr-2 -ml-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        Ver Organigrama
+                    </Link>
                     <button @click="openModal()" type="button" class="inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/20 text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all">
                         <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                         Nuevo Usuario
@@ -34,6 +38,16 @@
                 </div>
             </div>
 
+            <!-- Buscador y Filtros -->
+            <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                <input v-model="searchQuery" type="text" placeholder="Buscar por nombre o email..." class="w-full sm:w-1/3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none placeholder-slate-500 shadow-sm transition-colors">
+                
+                <select v-model="roleFilter" class="w-full sm:w-1/4 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none shadow-sm transition-colors custom-select">
+                    <option value="">Todos los Roles</option>
+                    <option v-for="role in roles" :key="role.value" :value="role.value">{{ role.name }}</option>
+                </select>
+            </div>
+
             <div class="bg-slate-900 shadow-2xl rounded-2xl overflow-hidden border border-slate-800">
                 <table class="min-w-full divide-y divide-slate-800">
                     <thead class="bg-slate-900/50">
@@ -46,12 +60,15 @@
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800 bg-slate-900">
-                    <tr v-for="user in users" :key="user.id" class="hover:bg-slate-800/50 transition-colors group">
+                    <tr v-if="users.data.length === 0">
+                        <td colspan="5" class="px-6 py-12 text-center text-slate-500 font-bold">No se encontraron usuarios.</td>
+                    </tr>
+                    <tr v-for="user in users.data" :key="user.id" class="hover:bg-slate-800/50 transition-colors group">
 
                         <td class="whitespace-nowrap py-4 pl-6 pr-3">
                             <div class="flex items-center">
                                 <div class="h-10 w-10 flex-shrink-0">
-                                    <div class="h-10 w-10 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold shadow-sm border border-slate-700">
+                                    <div class="h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm border border-slate-700" :class="getAvatarColor(user.role)">
                                         {{ user.name.charAt(0).toUpperCase() }}
                                     </div>
                                 </div>
@@ -63,17 +80,9 @@
                         </td>
 
                         <td class="whitespace-nowrap px-3 py-4 text-sm">
-                            <span v-if="user.role === 'Administrador'" class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider">
-                                <svg class="mr-1.5 h-2 w-2 text-purple-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
-                                Administrador
-                            </span>
-                            <span v-else-if="user.role === 'Supervisor'" class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-wider">
-                                <svg class="mr-1.5 h-2 w-2 text-blue-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
-                                Supervisor
-                            </span>
-                            <span v-else class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                                <svg class="mr-1.5 h-2 w-2 text-emerald-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
-                                Capturista
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold border uppercase tracking-widest" :class="getRoleBadge(user.role)">
+                                <svg class="mr-1.5 h-2 w-2" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
+                                {{ user.role }}
                             </span>
                         </td>
 
@@ -130,7 +139,26 @@
                     </tr>
                     </tbody>
                 </table>
+            <div class="bg-slate-950 px-6 py-4 border-t border-slate-800 flex items-center justify-between rounded-b-2xl">
+                <div class="text-xs text-slate-400 font-medium">
+                    Mostrando del <span class="font-bold text-slate-200">{{ users.from || 0 }}</span> al <span class="font-bold text-slate-200">{{ users.to || 0 }}</span> de <span class="font-bold text-slate-200">{{ users.total }}</span> usuarios
+                </div>
+                <div class="flex space-x-1" v-if="users.links && users.links.length > 3">
+                    <template v-for="(link, i) in users.links" :key="i">
+                        <Link v-if="link.url" 
+                              :href="link.url"
+                              v-html="link.label"
+                              class="px-3 py-1.5 text-xs font-bold rounded-lg transition-colors border shadow-sm"
+                              :class="link.active ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200'">
+                        </Link>
+                        <span v-else 
+                              v-html="link.label"
+                              class="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-800 bg-slate-900/50 text-slate-600 cursor-not-allowed">
+                        </span>
+                    </template>
+                </div>
             </div>
+        </div>
         </div>
     </AdminLayout>
 
@@ -225,21 +253,27 @@
                                     <div>
                                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Rol del Sistema</label>
                                         <select v-model="form.role" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-3 transition-colors custom-select appearance-none">
-                                            <option value="Administrador" class="bg-slate-900">Administrador</option>
-                                            <option value="Supervisor" class="bg-slate-900">Supervisor</option>
-                                            <option value="Capturista" class="bg-slate-900">Capturista</option>
+                                            <option v-for="role in roles" :key="role.value" :value="role.value" class="bg-slate-900">
+                                                {{ role.name }}
+                                            </option>
                                         </select>
                                     </div>
                                 </div>
 
-                                <div class="md:col-span-2 mt-2">
+                                <div class="md:col-span-2 mt-2" v-if="selectedRoleConfig && selectedRoleConfig.parentLevel !== null">
                                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Jefe Directo Asignado</label>
                                     <select v-model="form.parent_id" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-3 transition-colors custom-select appearance-none">
-                                        <option :value="null" class="bg-slate-900 text-slate-400">Sin Jefe Directo / Operación Independiente</option>
-                                        <option v-for="p in availableParents" :key="p.id" :value="p.id" v-show="p.id !== editingId" class="bg-slate-900">
+                                        <option :value="null" class="bg-slate-900 text-slate-400">Selecciona un Jefe Directo</option>
+                                        <option v-for="p in filteredParents" :key="p.id" :value="p.id" class="bg-slate-900">
                                             {{ p.name }} (Nivel: {{ p.role }})
                                         </option>
                                     </select>
+                                    <div v-if="form.errors.parent_id" class="text-red-400 text-xs mt-1 font-bold">{{ form.errors.parent_id }}</div>
+                                </div>
+                                <div class="md:col-span-2 mt-2" v-else>
+                                    <div class="text-sm text-slate-500 italic px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl">
+                                        Este rol no requiere asignar un jefe directo.
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -261,13 +295,51 @@
 
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue'
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref, computed, watch } from 'vue'
 
-defineProps({
-    users: Array,
-    availableParents: Array
+const props = defineProps({
+    users: Object, // Changed to Object for paginator
+    filters: Object,
+    availableParents: Array,
+    roles: Array
 });
+
+const searchQuery = ref(props.filters?.search || '');
+const roleFilter = ref(props.filters?.role || '');
+
+let searchTimeout;
+watch([searchQuery, roleFilter], ([newSearch, newRole]) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        router.get(route('usuarios.index'), {
+            search: newSearch,
+            role: newRole
+        }, { preserveState: true, replace: true, preserveScroll: true });
+    }, 300);
+});
+
+const getRoleBadge = (role) => {
+    switch (role) {
+        case 'Administrador': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+        case 'Coordinador de sector': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+        case 'Gestor seccional': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        case 'Presidente de comité': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        case 'Integrante de comité': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+        default: return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+    }
+};
+
+const getAvatarColor = (role) => {
+    switch (role) {
+        case 'Administrador': return 'bg-gradient-to-tr from-purple-700 to-purple-500';
+        case 'Coordinador de sector': return 'bg-gradient-to-tr from-blue-700 to-blue-500';
+        case 'Gestor seccional': return 'bg-gradient-to-tr from-emerald-700 to-emerald-500';
+        case 'Presidente de comité': return 'bg-gradient-to-tr from-amber-600 to-amber-400';
+        case 'Integrante de comité': return 'bg-gradient-to-tr from-orange-600 to-orange-400';
+        default: return 'bg-gradient-to-tr from-slate-600 to-slate-400';
+    }
+};
 
 const showModal = ref(false);
 const isEditing = ref(false);
@@ -285,8 +357,31 @@ const form = useForm({
     name: '',
     email: '',
     password: '',
-    role: 'Capturista',
+    role: 'Gestor seccional',
     parent_id: null
+});
+
+const selectedRoleConfig = computed(() => {
+    return props.roles?.find(r => r.value === form.role);
+});
+
+const filteredParents = computed(() => {
+    if (!selectedRoleConfig.value || selectedRoleConfig.value.parentLevel === null) {
+        return [];
+    }
+    const targetLevel = selectedRoleConfig.value.parentLevel;
+    return props.availableParents.filter(parent => {
+        const pRoleConfig = props.roles?.find(r => r.value === parent.role);
+        return pRoleConfig && pRoleConfig.level === targetLevel && parent.id !== editingId.value;
+    });
+});
+
+// Auto-reset parent_id when role changes and the current parent is no longer valid
+watch(() => form.role, () => {
+    if (form.parent_id) {
+        const isValid = filteredParents.value.some(p => p.id === form.parent_id);
+        if (!isValid) form.parent_id = null;
+    }
 });
 
 const openModal = (user = null) => {
@@ -303,6 +398,8 @@ const openModal = (user = null) => {
         isEditing.value = false;
         editingId.value = null;
         form.reset();
+        // default a role que no es admin
+        form.role = 'Gestor seccional';
     }
     showModal.value = true;
 };

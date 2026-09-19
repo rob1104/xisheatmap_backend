@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use App\Enums\UserRole;
 
 class CheckAdminAccess
 {
@@ -13,12 +14,16 @@ class CheckAdminAccess
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Si el usuario está logueado pero es Capturista, lo bloqueamos
-        $rolesPermitidos = ['Administrador', 'Supervisor'];
+        // Administrador, Coordinador de sector, Gestor seccional y Presidente de comité pueden acceder
+        $rolesPermitidos = [
+            UserRole::ADMINISTRADOR,
+            UserRole::COORDINADOR_SECTOR,
+            UserRole::GESTOR_SECCIONAL,
+            UserRole::PRESIDENTE_COMITE
+        ];
 
-        // Si el usuario está logueado pero su rol NO está en la lista permitida
         if (auth()->check() && !in_array(auth()->user()->role, $rolesPermitidos)) {
-            abort(403, 'Acceso restringido. Tu rol actual es: ' . auth()->user()->role);
+            abort(403, 'Acceso restringido. Tu rol actual es: ' . auth()->user()->role->value);
         }
 
         return $next($request);

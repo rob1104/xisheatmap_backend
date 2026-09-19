@@ -55,6 +55,23 @@
                     <button @click="changeRadius" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-semibold transition-colors">
                         Radio
                     </button>
+
+                    <!-- Botón Capa Secciones Electorales -->
+                    <button
+                        @click="toggleSecciones"
+                        :class="viendoSecciones ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white border-gray-300 text-gray-700'"
+                        class="px-4 py-2 border rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                    >
+                        <div :class="viendoSecciones ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'" class="w-2 h-2 rounded-full"></div>
+                        <span v-if="cargandoSecciones" class="inline-flex items-center">
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Cargando...
+                        </span>
+                        <span v-else>Secciones</span>
+                    </button>
                 </div>
             </div>
 
@@ -245,12 +262,20 @@ const initMap = () => {
         )
     })
 
-    heatmap = new window.google.maps.visualization.HeatmapLayer({
-        data: heatMapData,
-        map: map,
-        radius: 25,
-        opacity: 0.8
-    })
+    try {
+        if (window.google.maps.visualization && window.google.maps.visualization.HeatmapLayer) {
+            heatmap = new window.google.maps.visualization.HeatmapLayer({
+                data: heatMapData,
+                map: map,
+                radius: 25,
+                opacity: 0.8
+            })
+        }
+    } catch (err) {
+        console.warn("HeatmapLayer no está disponible en esta versión de Google Maps (v3.65+):", err)
+        heatmap = null
+        viendoSimpatizantes.value = false
+    }
 
     if (props.coordenadas.length > 1) {
         const bounds = new window.google.maps.LatLngBounds()
@@ -628,16 +653,145 @@ const changeRadius = () => {
     }
 }
 
+/** 
+ * Data Layer
+ * 
+ * Aqui van todos los Layers del mapa
+ */
+
+// Estados reactivos y referencias para la capa de secciones
+const viendoSecciones = ref(false)
+const cargandoSecciones = ref(false)
+let seccionesLayer = null
+let geoJsonSeccionesCache = null
+let seccionInfoWindow = null
+
+// Función de color temático (Coropletas)
+const obtenerColorPorMetrica = (simpatizantes) => {
+    if (simpatizantes >= 100) return "#1e3a8a"; // Azul marino (muy alta densidad)
+    if (simpatizantes >= 50)  return '#2563eb'; // Azul intenso
+    if (simpatizantes >= 20)  return '#60a5fa'; // Azul medio
+    if (simpatizantes > 0)   return '#93c5fd'; // Azul claro
+    return '#e2e8f0';                          // Gris claro neutro (sin registros)
+}
+
+const initSeccionesLayer = () => {
+    // Instanciar capa independiente y ventana de información
+    seccionesLayer = new window.google.maps.Data({ map: null })
+    seccionInfoWindow = new window.google.maps.InfoWindow()
+
+    // Estilo de polígono (basado en sus propiedades GeoJSON)
+    seccionesLayer.setStyle((feature) => {
+        const simpatizantes = feature.getProperty('total_simpatizantes') || 0
+
+        return {
+            fillColor: obtenerColorPorMetrica(simpatizantes),
+            fillOpacity: 0.35,
+            strokeColor: '#1e40af',
+            strokeWeight: 1.2,
+            strokeOpacity: 0.8,
+            cursor: 'pointer'
+        }
+    })
+
+    // Hover: Resalta los polígonos al pasar el cursor y restaura al salir
+    seccionesLayer.addListener('mouseover', (event) => {
+        seccionesLayer.overrideStyle(event.feature, {
+            fillOpacity: 0.65,
+            strokeWeight: 2.5,
+            strokeColor: '#0f172a'
+        })
+    })
+
+    seccionesLayer.addListener('mouseout', () => {
+        seccionesLayer.revertStyle()
+    })
+
+    // Mostrar popup InfoWindow con el desglose de métricas
+    seccionesLayer.addListener('click', (event) => {
+        const seccion = event.feature.getProperty('seccion')
+        const df = event.feature.getProperty('distrito_federal')
+        const dl = event.feature.getProperty('distrito_local')
+        const tipo = event.feature.getProperty('tipo') === 1 ? 'Urbana' : 'Rural'
+        const simpatizantes = event.feature.getProperty('total_simpatizantes') || 0
+        const apoyos = event.feature.getProperty('total_apoyos') || 0
+
+        const contenido = `
+            <div class="p-3 font-sans text-slate-800" style="min-width: 200px;">
+                <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200">
+                    <span class="text-xs font-bold uppercase tracking-wider text-indigo-600">Sección Electoral</span>
+                    <span class="text-base font-extrabold text-gray-900">${seccion}</span>
+                </div>
+                <div class="space-y-1 text-xs text-gray-600 mb-3">
+                    <div class="flex justify-between"><span>Distrito Federal:</span><strong class="text-gray-800">${df}</strong></div>
+                    <div class="flex justify-between"><span>Distrito Local:</span><strong class="text-gray-800">${dl}</strong></div>
+                    <div class="flex justify-between"><span>Tipo:</span> <strong class="text-gray-800">${tipo}</strong></div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-center">
+                    <div class="bg-indigo-50 p-2 rounded border border-indigo-100">
+                        <div class="text-lg font-black text-indigo-600">${simpatizantes}</div>
+                        <div class="text-[10px] uppercase font-semibold text-indigo-500">Simpatizantes</div>
+                    </div>
+                    <div class="bg-amber-50 p-2 rounded border border-amber-100">
+                        <div class="text-lg font-black text-amber-600">${apoyos}</div>
+                        <div class="text-[10px] uppercase font-semibold text-amber-500">Apoyos</div>
+                    </div>
+                </div>
+            </div>
+        `
+
+        seccionInfoWindow.setContent(contenido)
+        seccionInfoWindow.setPosition(event.latLng)
+        seccionInfoWindow.open(map)
+    })
+}
+
+const toggleSecciones = async () => {
+    viendoSecciones.value = !viendoSecciones.value
+
+    if (viendoSecciones.value) {
+        if (!seccionesLayer) {
+            initSeccionesLayer()
+        }
+        // Si ya está descargado, solo reactivamos la capa en el mapa
+        if (geoJsonSeccionesCache) {
+            seccionesLayer.setMap(map)
+            return
+        }
+        // Primera descarga desde el endpoint
+        try {
+            cargandoSecciones.value = true
+            const response = await axios.get('/api/spatial/secciones-geojson')
+            geoJsonSeccionesCache = response.data
+            seccionesLayer.addGeoJson(geoJsonSeccionesCache)
+            seccionesLayer.setMap(map)
+        } catch (error) {
+            console.error('Error al cargar polígonos de secciones: ', error)
+            viendoSecciones.value = false
+        } finally {
+            cargandoSecciones.value = false
+        }
+
+    } else {
+        if (seccionesLayer) {
+            seccionesLayer.setMap(null)
+        }
+        if (seccionInfoWindow) {
+            seccionInfoWindow.close()
+        }
+    }
+}
+
 onMounted(() => {
     if (window.google && window.google.maps) {
         initMap()
         return
     }
 
-    // Un solo montaje del script con las librerías correctas, forzando la versión 3.64
+    // Carga de Google Maps forzando v=3.64 (última versión con soporte HeatmapLayer) y loading=async
     window.initGoogleMap = initMap
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?v=3.64&key=${props.googleApiKey}&libraries=visualization,marker&callback=initGoogleMap`
+    script.src = `https://maps.googleapis.com/maps/api/js?v=3.64&key=${props.googleApiKey}&loading=async&libraries=visualization,marker&callback=initGoogleMap`
     script.async = true
     script.defer = true
     document.head.appendChild(script)
@@ -651,6 +805,16 @@ onUnmounted(() => {
     if (marcadoresApoyos.length > 0) {
         marcadoresApoyos.forEach(marker => marker.map = null);
         marcadoresApoyos = [];
+    }
+
+    if (seccionesLayer) {
+        seccionesLayer.setMap(null)
+        seccionesLayer = null
+    }
+    
+    if (seccionInfoWindow) {
+        seccionInfoWindow.close()
+        seccionInfoWindow = null
     }
 })
 </script>

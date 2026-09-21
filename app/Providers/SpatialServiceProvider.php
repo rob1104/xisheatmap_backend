@@ -20,7 +20,8 @@ class SpatialServiceProvider extends ServiceProvider
                 srid: (int) config('spatial.srid', 4326),
                 axisOrder: (string) config('spatial.axis_order', 'axis-order=long-lat'),
                 defaultEntidad: (int) config('spatial.default_entidad', 28),
-                defaultMunicipio: (int) config('spatial.default_municipio', 41)
+                defaultMunicipio: (int) config('spatial.default_municipio', 41),
+                engine: (string) config('spatial.engine', 'auto')
             );
         });
 

@@ -18,6 +18,7 @@ class Apoyo extends Model
         'calle_y_numero',
         'latitud',
         'longitud',
+        'seccion',
         'apoyo',
         'estatus_de_apoyo',
     ];

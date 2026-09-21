@@ -25,4 +25,19 @@ interface SpatialServiceInterface
      * Genera un FeatureCollection GeoJSON con métricas agregadas por sección.
      */
     public function getSeccionesGeoJsonWithMetrics(?int $municipio = null): array;
+
+    /**
+     * Configura el motor de base de datos para consultas geoespaciales ('mysql', 'mariadb', 'auto').
+     */
+    public function setEngine(string $engine): self;
+
+    /**
+     * Obtiene el motor actual configurado o detectado.
+     */
+    public function getEngine(): string;
+
+    /**
+     * Indica si el motor activo se comporta como MariaDB (sin axis-order en ST_GeomFromText).
+     */
+    public function isMariaDb(): bool;
 }

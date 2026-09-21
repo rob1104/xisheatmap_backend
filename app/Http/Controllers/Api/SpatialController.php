@@ -37,8 +37,14 @@ class SpatialController extends Controller
         return response()->json($seccion);
     }
 
-    public function auditSummary()
+    public function auditSummary(Request $request)
     {
+        $user = $request->user();
+        $role = $user?->role instanceof \BackedEnum ? $user->role->value : $user?->role;
+        if (!$user || $role !== 'Administrador') {
+            return response()->json(['message' => 'No autorizado para consultar la auditoría territorial.'], 403);
+        }
+
         return response()->json($this->spatial->auditIneRecords(1000));
     }
 }

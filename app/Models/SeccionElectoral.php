@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
-class SeccionElectoral extends Model 
+class SeccionElectoral extends Model
 {
     use HasFactory;
 
@@ -72,17 +72,30 @@ class SeccionElectoral extends Model
     {
         return $this->scopeSelectGeoJson($query);
     }
-    
+
     /**
      * Scope geoespacial: Determinar en qué sección electoral cae un punto GPS (Point in Polygon).
      *
      * IMPORTANTE: En MySQL 8.0 con SRID 4326 y 'axis-order=long-lat', el formato de POINT WKT es (longitud latitud).
      */
-    public function scopeContainingPoint($query, float $latitud, float $longitud)
-    {
+    public function scopeContainingPoint(
+        $query,
+        float $latitud,
+        float $longitud
+    ) {
+        $point = "POINT({$longitud} {$latitud})";
+        $spatial = app(\App\Contracts\SpatialServiceInterface::class);
+
+        if (method_exists($spatial, 'isMariaDb') && $spatial->isMariaDb()) {
+            return $query->whereRaw(
+                "ST_Contains(poligono, ST_GeomFromText(?, 4326))",
+                [$point]
+            );
+        }
+
         return $query->whereRaw(
             "ST_Contains(poligono, ST_GeomFromText(?, 4326, 'axis-order=long-lat'))",
-            ["POINT({$longitud} {$latitud})"]
+            [$point]
         );
     }
 

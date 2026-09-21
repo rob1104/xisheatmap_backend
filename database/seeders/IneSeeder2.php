@@ -26,6 +26,7 @@ class IneSeeder2 extends Seeder
 
         // Obtenemos las secciones electorales reales de Victoria si ya están en base de datos
         $seccionesVictoria = \App\Models\SeccionElectoral::where('municipio', 41)->pluck('seccion')->toArray();
+        $userId = \App\Models\User::first()?->id ?? 1;
 
         for ($i = 0; $i < 700; $i++) {
             // Clave de Elector simulada
@@ -59,7 +60,7 @@ class IneSeeder2 extends Seeder
                 'latitud'          => $faker->randomFloat(6, 23.680000, 23.780000),
                 'longitud'         => $faker->randomFloat(6, -99.180000, -99.080000),
 
-                'user_id'          => 1,
+                'user_id'          => $userId,
                 'capturado_en'     => $faker->dateTimeBetween('-1 month', 'now')->format('Y-m-d H:i:s'),
                 'created_at'       => $now,
                 'updated_at'       => $now,

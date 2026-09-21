@@ -9,11 +9,9 @@ use Illuminate\Console\Command;
 
 class AssingSeccionToApoyosCommand extends Command
 {
-    protected  $signature = 'spatial:assign-apoyos {--bulk : Ejecutar mediante sentencia SQL
-                                directa}';
+    protected $signature = 'spatial:assign-apoyos {--bulk : Ejecutar mediante sentencia SQL directa}';
 
-    protected $description = 'Auto-asigna la sección electoral correspondiente a los apoyos
-                                mediante Point-in-Polygon';
+    protected $description = 'Auto-asigna la sección electoral correspondiente a los apoyos mediante Point-in-Polygon';
 
     public function handle(SpatialServiceInterface $spatial): int
     {

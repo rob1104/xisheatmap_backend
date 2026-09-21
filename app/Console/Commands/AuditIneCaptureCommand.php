@@ -10,8 +10,7 @@ use Illuminate\Console\Command;
 class AuditIneCaptureCommand extends Command
 {
     protected $signature = 'spatial:audit-ine {--limit=500 : Límite de registros a auditar}';
-    protected $description = 'Audita la consistencia entre el GPS de captura y la sección de
-                                credencial en IneRecords';
+    protected $description = 'Audita la consistencia entre el GPS de captura y la sección de credencial en IneRecords';
 
         public function handle(SpatialServiceInterface $spatial): int
         {
@@ -30,9 +29,9 @@ class AuditIneCaptureCommand extends Command
             if (!empty($res['discrepancias'])) {
                 $this->warn("\nPrimeras anomalías detectadas:");
                 $this->table(
-                    ['ID', 'Clave Elector', 'Sec. Credencial', 'Sec. GPS Real', 'Distrito'],
+                    ['ID', 'Sec. Credencial', 'Sec. GPS Real', 'Distrito'],
                     collect($res['discrepancias'])->take(10)->map(fn($d) => [
-                        $d['id'], $d['clave_elector'], $d['seccion_credencial'],
+                        $d['id'], $d['seccion_credencial'],
                         $d['seccion_gps_real'], $d['distrito_local']
                     ])->toArray()
                 );

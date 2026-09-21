@@ -22,11 +22,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // La app envía (POST)
     Route::post('/ubicacion-brigadista', [TrackingController::class, 'reportarUbicacion']);
 
+    // Rutas protegidas de servicios geoespaciales
+    Route::prefix('spatial')->group(function () {
+        Route::get('/secciones-geojson', [SpatialController::class, 'seccionesGeoJson']);
+        Route::post('/locate-point', [SpatialController::class, 'locatePoint']);
+        Route::get('/audit-summary', [SpatialController::class, 'auditSummary']);
+    });
 });
-
-Route::get('/spatial/secciones-geojson', [SpatialController::class, 'seccionesGeoJson']);
-Route::post('/spatial/locate-point', [SpatialController::class, 'locatePoint']);
-Route::get('/spatial/audit-summary', [SpatialController::class, 'auditSummary']);
 
 
 

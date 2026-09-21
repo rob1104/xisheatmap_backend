@@ -14,32 +14,87 @@ class SpatialService implements SpatialServiceInterface
         protected int $srid = 4326,
         protected string $axisOrder = 'axis-order=long-lat',
         protected int $defaultEntidad = 28,
-        protected int $defaultMunicipio = 41
-    ){}
+        protected int $defaultMunicipio = 41,
+        protected string $engine = 'auto'
+    ) {}
 
     /**
-     * Determina la sección electoral que contiene un punto GPS (Point in Polygon) 
+     * Configura el motor GIS ('auto', 'mysql', 'mariadb').
+     */
+    public function setEngine(string $engine): self
+    {
+        $this->engine = strtolower($engine);
+        return $this;
+    }
+
+    /**
+     * Obtiene el motor GIS actual.
+     */
+    public function getEngine(): string
+    {
+        return $this->engine;
+    }
+
+    /**
+     * Determina si el motor activo se comporta como MariaDB (sin el 3er argumento en ST_GeomFromText).
+     */
+    public function isMariaDb(): bool
+    {
+        if ($this->engine === 'mariadb') {
+            return true;
+        }
+
+        if ($this->engine === 'mysql') {
+            return false;
+        }
+
+        try {
+            $version = DB::connection()->getPdo()->getAttribute(\PDO::ATTR_SERVER_VERSION);
+            return stripos($version, 'MariaDB') !== false;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Determina la sección electoral que contiene un punto GPS (Point in Polygon)
      */
     public function findSeccionByPoint(float $latitud, float $longitud): ?SeccionElectoral
     {
+        $wkt = "POINT({$longitud} {$latitud})";
+
+        if ($this->isMariaDb()) {
+            // MariaDB 10.4.13 no admite un tercer argumento en ST_GeomFromText.
+            // Siempre asume el orden de coordenadas (X=longitud, Y=latitud).
+            return SeccionElectoral::whereRaw(
+                "ST_Contains(poligono, ST_GeomFromText(?, ?))",
+                [$wkt, $this->srid]
+            )->first();
+        }
+
+        // MySQL 8.0 requiere 'axis-order=long-lat' con SRID 4326 para interpretar WKT como (long lat).
         return SeccionElectoral::whereRaw(
             "ST_Contains(poligono, ST_GeomFromText(?, ?, ?))",
-            ["POINT({$longitud} {$latitud})", $this->srid, $this->axisOrder]
+            [$wkt, $this->srid, $this->axisOrder]
         )->first();
     }
 
     /**
-     * Auto-asigna la sección territorial a los registros de apoyos pendientes
-     * soportan ejecucion por lotes Eloquent o via UPDATE JOIN masivo en MySQL
+     * Auto-asigna la sección territorial a los registros de apoyos pendientes.
+     * Soporta ejecución por lotes con Eloquent o vía UPDATE JOIN masivo adaptado al motor.
      */
     public function assignSeccionToApoyos(bool $useBulkSql = false): array
     {
         if ($useBulkSql) {
-            // Actualización masiva en una sola sentencia SQL de alto rendimiento
+            // Generar la sentencia adaptada a MariaDB vs MySQL 8
+            $pointSql = $this->isMariaDb()
+                ? "ST_GeomFromText(CONCAT('POINT(', a.longitud, ' ', a.latitud, ')'), {$this->srid})"
+                : "ST_GeomFromText(CONCAT('POINT(', a.longitud, ' ', a.latitud, ')'), {$this->srid}, '{$this->axisOrder}')";
+
             $afectados = DB::affectingStatement("
                 UPDATE apoyos a
                     JOIN secciones_electorales s
-                      ON ST_Contains(s.poligono, ST_GeomFromText(CONCAT('POINT(', a.longitud, ' ', a.latitud, ')'), {$this->srid}, '{$this->axisOrder}'))
+                      ON ST_Contains(s.poligono, {$pointSql})
                     SET a.seccion = s.seccion,
                         a.updated_at = NOW()
                     WHERE a.seccion IS NULL
@@ -53,78 +108,74 @@ class SpatialService implements SpatialServiceInterface
             ];
         }
 
-        // Modo granular con Eloquent
-        $apoyosSinSeccion = Apoyo::whereNotNull('latitud')
-                                ->whereNotNull('longitud')
-                                ->whereNull('seccion')
-                                ->get();
-
+        // Modo granular con Eloquent utilizando chunkById para no saturar memoria
         $asignados = 0;
         $sinCobertura = 0;
+        $totalProcesados = 0;
 
-        foreach ($apoyosSinSeccion as $apoyo) {
-            $seccion = $this->findSeccionByPoint((float)$apoyo->latitud, (float)$apoyo->longitud);
+        Apoyo::whereNotNull('latitud')
+            ->whereNotNull('longitud')
+            ->whereNull('seccion')
+            ->chunkById(200, function ($apoyos) use (&$asignados, &$sinCobertura, &$totalProcesados) {
+                foreach ($apoyos as $apoyo) {
+                    $totalProcesados++;
+                    $seccion = $this->findSeccionByPoint((float)$apoyo->latitud, (float)$apoyo->longitud);
 
-            if ($seccion){
-                $apoyo->seccion = $seccion->seccion;
-                $apoyo->saveQuietly();
-                $asignados++;
-            } else {
-                $sinCobertura++;
-            }
-        }
+                    if ($seccion) {
+                        $apoyo->seccion = $seccion->seccion;
+                        $apoyo->saveQuietly();
+                        $asignados++;
+                    } else {
+                        $sinCobertura++;
+                    }
+                }
+            });
 
         return [
             'modo' => 'eloquent',
-            'total_procesados' => $apoyosSinSeccion->count(),
+            'total_procesados' => $totalProcesados,
             'asignados' => $asignados,
             'sin_cobertura' => $sinCobertura
         ];
     }
 
     /**
-     * Audita la consistencia entre la sección impresa en el INE y las coordenadas GPS
+     * Audita la consistencia entre la sección impresa en el INE y las coordenadas GPS.
+     * No expone claves de elector ni coordenadas exactas por protección de datos (PII).
      */
     public function auditIneRecords(int $limit = 500): array
     {
-        $records = IneRecord::whereNotNull('latitud')
-                            ->whereNotNull('longitud')
-                            ->whereNotNull('seccion')
-                            ->limit($limit)
-                            ->get();
-        
         $coincidentes = 0;
         $discrepancias = [];
         $fueraDePoligonos = [];
+        $total = 0;
 
-        foreach ($records as $record) {
-            $seccionGps = $this->findSeccionByPoint((float)$record->latitud, (float)$record->longitud);
+        IneRecord::whereNotNull('latitud')
+            ->whereNotNull('longitud')
+            ->whereNotNull('seccion')
+            ->limit($limit)
+            ->chunkById(200, function ($records) use (&$coincidentes, &$discrepancias, &$fueraDePoligonos, &$total) {
+                foreach ($records as $record) {
+                    $total++;
+                    $seccionGps = $this->findSeccionByPoint((float)$record->latitud, (float)$record->longitud);
 
-            if (!$seccionGps) {
-                $fueraDePoligonos[] = [
-                    'id' => $record->id,
-                    'clave_elector' => $record->clave_elector,
-                    'latitud' => $record->latitud,
-                    'longitud' => $record->longitud,
-                    'motivo' => 'Coordenadas fuera del poligono municipal'
-                ];
-            } else if ($seccionGps->seccion === $record->seccion) {
-                $coincidentes++;
-            } else {
-                $discrepancias[] = [
-                    'id' => $record->id,
-                    'clave_elector' => $record->clave_elector,
-                    'seccion_credencial' => $record->seccion,
-                    'clave_credencial' => $record->seccion,
-                    'seccion_gps_real' => $seccionGps->seccion,
-                    'distrito_local' => $seccionGps->distrito_local,
-                    'latitud' => $record->latitud,
-                    'longitud' => $record->longitud
-                ];
-            }
-        }
-        
-        $total = $records->count();
+                    if (!$seccionGps) {
+                        $fueraDePoligonos[] = [
+                            'id' => $record->id,
+                            'motivo' => 'Coordenadas fuera del polígono municipal',
+                        ];
+                    } elseif ($seccionGps->seccion === $record->seccion) {
+                        $coincidentes++;
+                    } else {
+                        $discrepancias[] = [
+                            'id' => $record->id,
+                            'seccion_credencial' => $record->seccion,
+                            'seccion_gps_real' => $seccionGps->seccion,
+                            'distrito_local' => $seccionGps->distrito_local,
+                        ];
+                    }
+                }
+            });
 
         return [
             'total_analizados' => $total,
@@ -137,30 +188,44 @@ class SpatialService implements SpatialServiceInterface
         ];
     }
 
+    /**
+     * Genera un FeatureCollection GeoJSON con métricas agregadas por sección,
+     * delimitando los conteos estrictamente al alcance territorial del municipio.
+     */
     public function getSeccionesGeoJsonWithMetrics(?int $municipio = null): array
     {
         $municipio = $municipio ?? $this->defaultMunicipio;
 
-        // Agrupación atributiva rápida O(1) con índice B-Tree
-        $metricasInes = IneRecord::select('seccion', DB::raw('COUNT(*) as total'))
-                                    ->groupBy('seccion')
-                                    ->pluck('total','seccion')
-                                    ->toArray();
-
-        $metricasApoyos = Apoyo::whereNotNull('seccion')
-                                    ->select('seccion', DB::raw('COUNT(*) as total'))
-                                    ->groupBy('seccion')
-                                    ->pluck('total', 'seccion')
-                                    ->toArray();
-
-        // Traer los poligonos convertidos a GeoJson por MySQL nativo
+        // Traer las secciones filtradas por municipio y entidad
         $secciones = SeccionElectoral::forMunicipio($municipio)
-                                        ->withGeoJson()
-                                        ->get();
+            ->where('entidad', $this->defaultEntidad)
+            ->withGeoJson()
+            ->get();
+
+        $seccionCodes = $secciones->pluck('seccion')->unique()->values();
+
+        $metricasInes = [];
+        $metricasApoyos = [];
+
+        // Delimitar el alcance territorial de los conteos exclusivamente a las secciones del municipio
+        if ($seccionCodes->isNotEmpty()) {
+            $metricasInes = IneRecord::whereIn('seccion', $seccionCodes)
+                ->select('seccion', DB::raw('COUNT(*) as total'))
+                ->groupBy('seccion')
+                ->pluck('total', 'seccion')
+                ->toArray();
+
+            $metricasApoyos = Apoyo::whereIn('seccion', $seccionCodes)
+                ->select('seccion', DB::raw('COUNT(*) as total'))
+                ->groupBy('seccion')
+                ->pluck('total', 'seccion')
+                ->toArray();
+        }
+
         $features = [];
 
         foreach ($secciones as $sec) {
-            $features[]  = [
+            $features[] = [
                 'type' => 'Feature',
                 'properties' => [
                     'id' => $sec->id,

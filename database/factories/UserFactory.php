@@ -31,6 +31,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'role' => \App\Enums\UserRole::ADMINISTRADOR,
             'remember_token' => Str::random(10),
+            'role' => \App\Enums\UserRole::ADMINISTRADOR,
         ];
     }
 

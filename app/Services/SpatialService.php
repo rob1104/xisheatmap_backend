@@ -290,9 +290,23 @@ class SpatialService implements SpatialServiceInterface
                 ->toArray();
         }
 
+        $totalSimpatizantesMunicipio = array_sum($metricasInes);
+        $totalApoyosMunicipio = array_sum($metricasApoyos);
+
         $features = [];
 
         foreach ($secciones as $sec) {
+            $simpatizantes = $metricasInes[$sec->seccion] ?? 0;
+            $apoyos = $metricasApoyos[$sec->seccion] ?? 0;
+
+            $porcentajeSimpatizantes = $totalSimpatizantesMunicipio > 0
+                ? round(($simpatizantes / $totalSimpatizantesMunicipio) * 100, 2)
+                : 0.0;
+
+            $porcentajeApoyos = $totalApoyosMunicipio > 0
+                ? round(($apoyos / $totalApoyosMunicipio) * 100, 2)
+                : 0.0;
+
             $features[] = [
                 'type' => 'Feature',
                 'properties' => [
@@ -302,8 +316,11 @@ class SpatialService implements SpatialServiceInterface
                     'distrito_federal' => $sec->distrito_federal,
                     'distrito_local' => $sec->distrito_local,
                     'tipo' => $sec->tipo,
-                    'total_simpatizantes' => $metricasInes[$sec->seccion] ?? 0,
-                    'total_apoyos' => $metricasApoyos[$sec->seccion] ?? 0,
+                    'total_simpatizantes' => $simpatizantes,
+                    'total_apoyos' => $apoyos,
+                    'porcentaje' => $porcentajeSimpatizantes,
+                    'porcentaje_simpatizantes' => $porcentajeSimpatizantes,
+                    'porcentaje_apoyos' => $porcentajeApoyos,
                 ],
                 'geometry' => json_decode($sec->geojson)
             ];
@@ -311,6 +328,11 @@ class SpatialService implements SpatialServiceInterface
 
         return [
             'type' => 'FeatureCollection',
+            'summary' => [
+                'total_secciones' => count($features),
+                'total_simpatizantes' => $totalSimpatizantesMunicipio,
+                'total_apoyos' => $totalApoyosMunicipio,
+            ],
             'features' => $features
         ];
     }

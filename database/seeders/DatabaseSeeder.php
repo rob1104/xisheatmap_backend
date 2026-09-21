@@ -15,15 +15,17 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Usuario inicial de prueba (idempotente)
-        User::firstOrCreate(
-            ['email' => 'test@example.com'],
-            [
-                'name' => 'Test User',
-                'password' => bcrypt('password'),
-                'role' => 'Administrador',
-            ]
-        );
+        // Usuario inicial de prueba solo en entornos de desarrollo/pruebas (idempotente)
+        if (app()->environment('local', 'testing')) {
+            User::firstOrCreate(
+                ['email' => 'test@example.com'],
+                [
+                    'name' => 'Test User',
+                    'password' => bcrypt('password'),
+                    'role' => 'Administrador',
+                ]
+            );
+        }
 
         // Carga de las 170 secciones electorales de Ciudad Victoria (INE)
         $this->call([

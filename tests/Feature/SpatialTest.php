@@ -19,6 +19,7 @@ class SpatialTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        app(SpatialServiceInterface::class)->setEngine('auto');
     }
 
     /**
@@ -38,6 +39,15 @@ class SpatialTest extends TestCase
             ]]
         ]);
 
+        /** @var SpatialServiceInterface $spatial */
+        $spatial = app(SpatialServiceInterface::class);
+
+        // En MariaDB 10.4 ST_GeomFromGeoJSON solo acepta 1 o 2 parámetros: ST_GeomFromGeoJSON(g [, option]).
+        // En MySQL 8 se utiliza el 3er parámetro para SRID: ST_GeomFromGeoJSON(g, 1, 4326).
+        $geomSql = $spatial->isMariaDb()
+            ? "ST_GeomFromGeoJSON('{$polyGeoJson}', 1)"
+            : "ST_GeomFromGeoJSON('{$polyGeoJson}', 1, 4326)";
+
         DB::table('secciones_electorales')->insert([
             'entidad' => $entidad,
             'municipio' => $municipio,
@@ -45,7 +55,7 @@ class SpatialTest extends TestCase
             'distrito_federal' => 5,
             'distrito_local' => 14,
             'tipo' => 2,
-            'poligono' => DB::raw("ST_GeomFromGeoJSON('{$polyGeoJson}', 1, 4326)"),
+            'poligono' => DB::raw($geomSql),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -89,15 +99,14 @@ class SpatialTest extends TestCase
     }
 
     /**
-     * Test 3: Point-in-Polygon identifica la sección correcta en MySQL 8 (dentro y fuera).
+     * Test 3: Point-in-Polygon identifica la sección correcta (dentro y fuera).
      */
-    public function test_point_in_polygon_identifies_seccion_mysql(): void
+    public function test_point_in_polygon_identifies_seccion(): void
     {
         $this->createTestSeccion('9901');
 
         /** @var SpatialServiceInterface $spatial */
         $spatial = app(SpatialServiceInterface::class);
-        $spatial->setEngine('mysql');
 
         // Punto dentro del polígono (Plaza de Armas / Centro de Victoria)
         $seccionDentro = $spatial->findSeccionByPoint(23.73, -99.14);
@@ -177,7 +186,6 @@ class SpatialTest extends TestCase
 
         /** @var SpatialServiceInterface $spatial */
         $spatial = app(SpatialServiceInterface::class);
-        $spatial->setEngine('mysql');
 
         $res = $spatial->assignSeccionToApoyos(true);
 
@@ -362,6 +370,13 @@ class SpatialTest extends TestCase
         $this->assertEquals(41, $feature['properties']['municipio']);
         $this->assertEquals(1, $feature['properties']['total_simpatizantes']);
         $this->assertEquals(1, $feature['properties']['total_apoyos']);
+        $this->assertEquals(100.0, $feature['properties']['porcentaje']);
+        $this->assertEquals(100.0, $feature['properties']['porcentaje_simpatizantes']);
+        $this->assertEquals(100.0, $feature['properties']['porcentaje_apoyos']);
+
+        $this->assertArrayHasKey('summary', $geoJson);
+        $this->assertEquals(1, $geoJson['summary']['total_simpatizantes']);
+        $this->assertEquals(1, $geoJson['summary']['total_apoyos']);
     }
 
     /**
@@ -439,9 +454,18 @@ class SpatialTest extends TestCase
             ])
             ->assertStatus(404);
 
-        // Validación de campos
+        // Validación de campos requeridos
         $this->actingAs($user, 'sanctum')
             ->postJson('/api/spatial/locate-point', [])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['latitud', 'longitud']);
+
+        // Validación de rangos permitidos (Latitud entre -90 y 90, Longitud entre -180 y 180)
+        $this->actingAs($user, 'sanctum')
+            ->postJson('/api/spatial/locate-point', [
+                'latitud' => 95.0,
+                'longitud' => -195.0,
+            ])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['latitud', 'longitud']);
     }

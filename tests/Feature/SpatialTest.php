@@ -187,6 +187,35 @@ class SpatialTest extends TestCase
     }
 
     /**
+     * Test 5b: Auto-asigna y sincroniza la sección territorial de simpatizantes INE según GPS real.
+     */
+    public function test_assign_seccion_to_ine_records_syncs_with_gps(): void
+    {
+        $this->createTestSeccion('9901');
+
+        $admin = User::factory()->create(['role' => 'Administrador']);
+
+        $ine = IneRecord::create([
+            'user_id' => $admin->id,
+            'clave_elector' => 'CLAVETESTSYNC0001',
+            'nombre' => 'Test',
+            'apellido_paterno' => 'Sync',
+            'colonia' => 'Centro',
+            'seccion' => '0000',
+            'latitud' => 23.73,
+            'longitud' => -99.14,
+        ]);
+
+        /** @var SpatialServiceInterface $spatial */
+        $spatial = app(SpatialServiceInterface::class);
+        $res = $spatial->assignSeccionToIneRecords(false, true);
+
+        $this->assertEquals('eloquent', $res['modo']);
+        $this->assertGreaterThanOrEqual(1, $res['asignados']);
+        $this->assertEquals('9901', $ine->fresh()->seccion);
+    }
+
+    /**
      * Test 6: Auditoría INE protege datos personales (NO expone claves de elector ni coordenadas).
      */
     public function test_audit_ine_records_protects_pii(): void

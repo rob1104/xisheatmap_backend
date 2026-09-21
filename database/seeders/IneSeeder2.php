@@ -74,6 +74,10 @@ class IneSeeder2 extends Seeder
             DB::table('ine_records')->insert($chunk);
         }
 
-        $this->command->info('¡700 expedientes ficticios generados en Ciudad Victoria exitosamente!');
+        // Auto-sincronizamos territorialmente para garantizar consistencia del 100% con los polígonos
+        $this->command->info('Sincronizando secciones electorales según coordenadas GPS reales...');
+        app(\App\Contracts\SpatialServiceInterface::class)->assignSeccionToIneRecords(force: true);
+
+        $this->command->info('¡700 expedientes ficticios generados y sincronizados territorialmente con éxito!');
     }
 }

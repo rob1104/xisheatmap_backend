@@ -140,6 +140,74 @@ class SpatialService implements SpatialServiceInterface
     }
 
     /**
+     * Auto-asigna o sincroniza la sección territorial a los registros de simpatizantes INE según su GPS real.
+     * Soporta ejecución por lotes con Eloquent o vía UPDATE JOIN masivo adaptado al motor.
+     */
+    public function assignSeccionToIneRecords(bool $useBulkSql = false, bool $force = true): array
+    {
+        if ($useBulkSql) {
+            $pointSql = $this->isMariaDb()
+                ? "ST_GeomFromText(CONCAT('POINT(', i.longitud, ' ', i.latitud, ')'), {$this->srid})"
+                : "ST_GeomFromText(CONCAT('POINT(', i.longitud, ' ', i.latitud, ')'), {$this->srid}, '{$this->axisOrder}')";
+
+            $whereClause = $force
+                ? "i.latitud IS NOT NULL AND i.longitud IS NOT NULL AND (i.seccion IS NULL OR i.seccion != s.seccion)"
+                : "i.seccion IS NULL AND i.latitud IS NOT NULL AND i.longitud IS NOT NULL";
+
+            $afectados = DB::affectingStatement("
+                UPDATE ine_records i
+                    JOIN secciones_electorales s
+                      ON ST_Contains(s.poligono, {$pointSql})
+                    SET i.seccion = s.seccion,
+                        i.updated_at = NOW()
+                    WHERE {$whereClause}
+            ");
+
+            return [
+                'modo' => 'sql_bulk',
+                'asignados' => $afectados,
+            ];
+        }
+
+        $asignados = 0;
+        $sinCambios = 0;
+        $sinCobertura = 0;
+        $totalProcesados = 0;
+
+        $query = IneRecord::whereNotNull('latitud')->whereNotNull('longitud');
+        if (!$force) {
+            $query->whereNull('seccion');
+        }
+
+        $query->chunkById(200, function ($records) use (&$asignados, &$sinCambios, &$sinCobertura, &$totalProcesados) {
+            foreach ($records as $record) {
+                $totalProcesados++;
+                $seccion = $this->findSeccionByPoint((float)$record->latitud, (float)$record->longitud);
+
+                if ($seccion) {
+                    if ($record->seccion !== $seccion->seccion) {
+                        $record->seccion = $seccion->seccion;
+                        $record->saveQuietly();
+                        $asignados++;
+                    } else {
+                        $sinCambios++;
+                    }
+                } else {
+                    $sinCobertura++;
+                }
+            }
+        });
+
+        return [
+            'modo' => 'eloquent',
+            'total_procesados' => $totalProcesados,
+            'asignados' => $asignados,
+            'sin_cambios' => $sinCambios,
+            'sin_cobertura' => $sinCobertura
+        ];
+    }
+
+    /**
      * Audita la consistencia entre la sección impresa en el INE y las coordenadas GPS.
      * No expone claves de elector ni coordenadas exactas por protección de datos (PII).
      */

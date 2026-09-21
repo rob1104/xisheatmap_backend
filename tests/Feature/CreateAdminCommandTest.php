@@ -25,7 +25,7 @@ class CreateAdminCommandTest extends TestCase
         $user = User::where('email', $email)->first();
         $this->assertNotNull($user);
         $this->assertEquals($name, $user->name);
-        $this->assertEquals('Administrador', $user->role);
+        $this->assertEquals('Administrador', $user->role instanceof \BackedEnum ? $user->role->value : $user->role);
         $this->assertNotNull($user->email_verified_at);
         $this->assertTrue(Hash::check($password, $user->password));
 
@@ -36,7 +36,7 @@ class CreateAdminCommandTest extends TestCase
     public function test_can_promote_existing_user_to_admin(): void
     {
         $user = User::factory()->create([
-            'role' => 'Capturista',
+            'role' => \App\Enums\UserRole::GESTOR_SECCIONAL,
         ]);
 
         $this->artisan('admin:create', [
@@ -48,7 +48,7 @@ class CreateAdminCommandTest extends TestCase
         ->assertSuccessful();
 
         $user->refresh();
-        $this->assertEquals('Administrador', $user->role);
+        $this->assertEquals('Administrador', $user->role instanceof \BackedEnum ? $user->role->value : $user->role);
 
         // Cleanup
         $user->delete();

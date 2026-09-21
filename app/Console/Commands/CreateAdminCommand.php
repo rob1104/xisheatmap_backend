@@ -46,7 +46,8 @@ class CreateAdminCommand extends Command
         $user = User::where('email', $email)->first();
 
         if ($user) {
-            $this->warn("Ya existe un usuario con el correo: {$email} (Rol actual: {$user->role})");
+            $currentRole = $user->role instanceof \BackedEnum ? $user->role->value : (string) $user->role;
+            $this->warn("Ya existe un usuario con el correo: {$email} (Rol actual: {$currentRole})");
             
             if (!$this->confirm('¿Deseas actualizarlo y asignarle el rol de Administrador?', true)) {
                 $this->info('Operación cancelada.');
@@ -164,7 +165,7 @@ class CreateAdminCommand extends Command
                 $user->id,
                 $user->name,
                 $user->email,
-                $user->role,
+                $user->role instanceof \BackedEnum ? $user->role->value : (string) $user->role,
                 $user->email_verified_at?->toDateTimeString() ?? 'N/A'
             ]]
         );

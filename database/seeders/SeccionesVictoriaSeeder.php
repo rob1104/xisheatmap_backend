@@ -56,13 +56,18 @@ class SeccionesVictoriaSeeder extends Seeder
 
                 $geomJson = json_encode($geom);
 
-                // Insertamos o actualizamos usando SQL nativo para asignar el campo GEOMETRY con SRID 4326
+                $spatial = app(\App\Contracts\SpatialServiceInterface::class);
+                $geoJsonSql = $spatial->isMariaDb()
+                    ? "ST_GeomFromGeoJSON(?, 1)"
+                    : "ST_GeomFromGeoJSON(?, 1, 4326)";
+
+                // Insertamos o actualizamos usando SQL nativo para asignar el campo GEOMETRY compatible con MariaDB/MySQL 8
                 // Usamos affectingStatement para obtener el número de filas afectadas (1: insertado, 2: actualizado, 0: sin cambios)
                 $affected = DB::affectingStatement("
                     INSERT INTO secciones_electorales 
                         (entidad, municipio, seccion, distrito_federal, distrito_local, tipo, control, poligono, created_at, updated_at)
                     VALUES 
-                        (?, ?, ?, ?, ?, ?, ?, ST_GeomFromGeoJSON(?, 1, 4326), NOW(), NOW())
+                        (?, ?, ?, ?, ?, ?, ?, {$geoJsonSql}, NOW(), NOW())
                     ON DUPLICATE KEY UPDATE
                         distrito_federal = VALUES(distrito_federal),
                         distrito_local = VALUES(distrito_local),

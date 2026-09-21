@@ -21,8 +21,8 @@ class SpatialController extends Controller
     public function locatePoint(Request $request)
     {
         $request->validate([
-            'latitud' => 'required|numeric',
-            'longitud' => 'required|numeric',
+            'latitud' => 'required|numeric|between:-90,90',
+            'longitud' => 'required|numeric|between:-180,180',
         ]);
 
         $seccion = $this->spatial->findSeccionByPoint(

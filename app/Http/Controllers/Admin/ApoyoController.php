@@ -36,8 +36,8 @@ class ApoyoController extends Controller
             'telefono' => 'nullable|string|max:255',
             'colonia' => 'required|string|max:255',
             'calle_y_numero' => 'required|string|max:255',
-            'latitud' => 'required|numeric',
-            'longitud' => 'required|numeric',
+            'latitud' => 'required|numeric|between:-90,90',
+            'longitud' => 'required|numeric|between:-180,180',
             'apoyo' => 'required|string|max:255',
             'estatus_de_apoyo' => 'required|string|max:255',
         ]);
@@ -58,8 +58,8 @@ class ApoyoController extends Controller
             'telefono' => 'nullable|string|max:255',
             'colonia' => 'required|string|max:255',
             'calle_y_numero' => 'required|string|max:255',
-            'latitud' => 'required|numeric',
-            'longitud' => 'required|numeric',
+            'latitud' => 'required|numeric|between:-90,90',
+            'longitud' => 'required|numeric|between:-180,180',
             'apoyo' => 'required|string|max:255',
             'estatus_de_apoyo' => 'required|string|max:255',
         ]);

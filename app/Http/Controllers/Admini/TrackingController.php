@@ -12,8 +12,8 @@ class TrackingController extends Controller
     public function reportarUbicacion(Request $request)
     {
         $request->validate([
-            'latitud' => 'required|numeric',
-            'longitud' => 'required|numeric',
+            'latitud' => 'required|numeric|between:-90,90',
+            'longitud' => 'required|numeric|between:-180,180',
         ]);
 
         $user = $request->user(); // Identifica al brigadista por su Token

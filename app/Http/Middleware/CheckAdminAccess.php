@@ -23,7 +23,8 @@ class CheckAdminAccess
         ];
 
         if (auth()->check() && !in_array(auth()->user()->role, $rolesPermitidos)) {
-            abort(403, 'Acceso restringido. Tu rol actual es: ' . auth()->user()->role->value);
+            $roleLabel = auth()->user()->role instanceof UserRole ? auth()->user()->role->value : (auth()->user()->role ?? 'Sin Rol');
+            abort(403, 'Acceso restringido. Tu rol actual es: ' . $roleLabel);
         }
 
         return $next($request);

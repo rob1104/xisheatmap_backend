@@ -15,7 +15,7 @@ class AssignSeccionToIneCommand extends Command
     {
         $this->info('Iniciando sincronización territorial de simpatizantes INE...');
 
-        $force = $this->option('force') || true;
+        $force = (bool) $this->option('force');
         $res = $spatial->assignSeccionToIneRecords($this->option('bulk'), $force);
 
         $this->table(['Métrica', 'Valor'], [

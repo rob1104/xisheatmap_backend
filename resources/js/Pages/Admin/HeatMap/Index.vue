@@ -715,6 +715,7 @@ const initSeccionesLayer = () => {
         const tipo = event.feature.getProperty('tipo') === 1 ? 'Urbana' : 'Rural'
         const simpatizantes = event.feature.getProperty('total_simpatizantes') || 0
         const apoyos = event.feature.getProperty('total_apoyos') || 0
+        const porcentaje = event.feature.getProperty('porcentaje') ?? event.feature.getProperty('porcentaje_simpatizantes') ?? 0
 
         const contenido = `
             <div class="p-3 font-sans text-slate-800" style="min-width: 200px;">
@@ -730,7 +731,7 @@ const initSeccionesLayer = () => {
                 <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-center">
                     <div class="bg-indigo-50 p-2 rounded border border-indigo-100">
                         <div class="text-lg font-black text-indigo-600">${simpatizantes}</div>
-                        <div class="text-[10px] uppercase font-semibold text-indigo-500">Simpatizantes</div>
+                        <div class="text-[10px] uppercase font-semibold text-indigo-500">Simpatizantes (${porcentaje}%)</div>
                     </div>
                     <div class="bg-amber-50 p-2 rounded border border-amber-100">
                         <div class="text-lg font-black text-amber-600">${apoyos}</div>
@@ -761,9 +762,18 @@ const toggleSecciones = async () => {
         // Primera descarga desde el endpoint
         try {
             cargandoSecciones.value = true
-            const response = await axios.get('/api/spatial/secciones-geojson')
+            let response
+            try {
+                response = await axios.get('/spatial/secciones-geojson')
+            } catch (errWeb) {
+                response = await axios.get('/api/spatial/secciones-geojson')
+            }
             geoJsonSeccionesCache = response.data
-            seccionesLayer.addGeoJson(geoJsonSeccionesCache)
+            const geoData = {
+                type: 'FeatureCollection',
+                features: geoJsonSeccionesCache.features || []
+            }
+            seccionesLayer.addGeoJson(geoData)
             seccionesLayer.setMap(map)
         } catch (error) {
             console.error('Error al cargar polígonos de secciones: ', error)

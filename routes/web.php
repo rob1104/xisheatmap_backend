@@ -79,6 +79,7 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
 
     // El mapa web consulta (GET) - Esta es la que pegamos en tu Vue hace rato
     Route::get('/rastreo-brigadistas', [TrackingController::class, 'obtenerActivos'])->name('rastreo-brigadistas');
+    Route::get('/spatial/secciones-geojson', [\App\Http\Controllers\Api\SpatialController::class, 'seccionesGeoJson'])->name('spatial.secciones-geojson');
 
 });
 

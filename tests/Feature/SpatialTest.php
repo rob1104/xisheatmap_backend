@@ -195,7 +195,7 @@ class SpatialTest extends TestCase
     }
 
     /**
-     * Test 5b: Auto-asigna y sincroniza la sección territorial de simpatizantes INE según GPS real.
+     * Test 5b: Auto-asigna y sincroniza la sección territorial de simpatizantes INE según GPS real conservando la sección original.
      */
     public function test_assign_seccion_to_ine_records_syncs_with_gps(): void
     {
@@ -216,11 +216,13 @@ class SpatialTest extends TestCase
 
         /** @var SpatialServiceInterface $spatial */
         $spatial = app(SpatialServiceInterface::class);
-        $res = $spatial->assignSeccionToIneRecords(false, true);
+        $res = $spatial->assignSeccionToIneRecords();
 
         $this->assertEquals('eloquent', $res['modo']);
         $this->assertGreaterThanOrEqual(1, $res['asignados']);
-        $this->assertEquals('9901', $ine->fresh()->seccion);
+        $this->assertEquals('0000', $ine->fresh()->seccion, 'La sección original de la credencial no debe sobrescribirse');
+        $this->assertEquals('9901', $ine->fresh()->seccion_gps, 'La sección del GPS debe registrarse en seccion_gps');
+        $this->assertTrue($ine->fresh()->tiene_discrepancia);
     }
 
     /**

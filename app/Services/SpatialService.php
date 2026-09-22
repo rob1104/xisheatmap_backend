@@ -143,7 +143,7 @@ class SpatialService implements SpatialServiceInterface
      * Auto-asigna o sincroniza la sección territorial a los registros de simpatizantes INE según su GPS real.
      * Soporta ejecución por lotes con Eloquent o vía UPDATE JOIN masivo adaptado al motor.
      */
-    public function assignSeccionToIneRecords(bool $useBulkSql = false, bool $force = true): array
+    public function assignSeccionToIneRecords(bool $useBulkSql = false, bool $force = false): array
     {
         if ($useBulkSql) {
             $pointSql = $this->isMariaDb()
@@ -151,14 +151,14 @@ class SpatialService implements SpatialServiceInterface
                 : "ST_GeomFromText(CONCAT('POINT(', i.longitud, ' ', i.latitud, ')'), {$this->srid}, '{$this->axisOrder}')";
 
             $whereClause = $force
-                ? "i.latitud IS NOT NULL AND i.longitud IS NOT NULL AND (i.seccion IS NULL OR i.seccion != s.seccion)"
-                : "i.seccion IS NULL AND i.latitud IS NOT NULL AND i.longitud IS NOT NULL";
+                ? "i.latitud IS NOT NULL AND i.longitud IS NOT NULL AND (i.seccion_gps IS NULL OR i.seccion_gps != s.seccion)"
+                : "i.seccion_gps IS NULL AND i.latitud IS NOT NULL AND i.longitud IS NOT NULL";
 
             $afectados = DB::affectingStatement("
                 UPDATE ine_records i
                     JOIN secciones_electorales s
                       ON ST_Contains(s.poligono, {$pointSql})
-                    SET i.seccion = s.seccion,
+                    SET i.seccion_gps = s.seccion,
                         i.updated_at = NOW()
                     WHERE {$whereClause}
             ");
@@ -176,17 +176,17 @@ class SpatialService implements SpatialServiceInterface
 
         $query = IneRecord::whereNotNull('latitud')->whereNotNull('longitud');
         if (!$force) {
-            $query->whereNull('seccion');
+            $query->whereNull('seccion_gps');
         }
 
-        $query->chunkById(200, function ($records) use (&$asignados, &$sinCambios, &$sinCobertura, &$totalProcesados) {
+        $query->chunkById(200, function ($records) use (&$asignados, &$sinCambios, &$sinCobertura, &$totalProcesados, $force) {
             foreach ($records as $record) {
                 $totalProcesados++;
                 $seccion = $this->findSeccionByPoint((float)$record->latitud, (float)$record->longitud);
 
                 if ($seccion) {
-                    if ($record->seccion !== $seccion->seccion) {
-                        $record->seccion = $seccion->seccion;
+                    if ($record->seccion_gps !== $seccion->seccion) {
+                        $record->seccion_gps = $seccion->seccion;
                         $record->saveQuietly();
                         $asignados++;
                     } else {
@@ -194,6 +194,10 @@ class SpatialService implements SpatialServiceInterface
                     }
                 } else {
                     $sinCobertura++;
+                    if ($force && $record->seccion_gps !== null) {
+                        $record->seccion_gps = null;
+                        $record->saveQuietly();
+                    }
                 }
             }
         });
@@ -277,10 +281,10 @@ class SpatialService implements SpatialServiceInterface
 
         // Delimitar el alcance territorial de los conteos exclusivamente a las secciones del municipio
         if ($seccionCodes->isNotEmpty()) {
-            $metricasInes = IneRecord::whereIn('seccion', $seccionCodes)
-                ->select('seccion', DB::raw('COUNT(*) as total'))
-                ->groupBy('seccion')
-                ->pluck('total', 'seccion')
+            $metricasInes = IneRecord::whereIn(DB::raw('COALESCE(seccion_gps, seccion)'), $seccionCodes)
+                ->select(DB::raw('COALESCE(seccion_gps, seccion) as sec_code'), DB::raw('COUNT(*) as total'))
+                ->groupBy(DB::raw('COALESCE(seccion_gps, seccion)'))
+                ->pluck('total', 'sec_code')
                 ->toArray();
 
             $metricasApoyos = Apoyo::whereIn('seccion', $seccionCodes)

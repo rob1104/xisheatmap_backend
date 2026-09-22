@@ -24,8 +24,13 @@ class IneSeeder2 extends Seeder
             'Amalia G. de Castillo Ledón', 'Fuego Nuevo', 'Teocaltiche', 'Corregidora'
         ];
 
-        // Obtenemos las secciones electorales reales de Victoria si ya están en base de datos
-        $seccionesVictoria = \App\Models\SeccionElectoral::where('municipio', 41)->pluck('seccion')->toArray();
+        // Obtenemos las secciones electorales reales de Victoria con sus centroides espaciales
+        $seccionesVictoria = \App\Models\SeccionElectoral::where('municipio', 41)
+            ->selectRaw('seccion, ST_Y(ST_Centroid(poligono)) as lat, ST_X(ST_Centroid(poligono)) as lng')
+            ->get()
+            ->keyBy(fn($item) => (string)$item->seccion);
+
+        $seccionCodes = $seccionesVictoria->keys()->map(fn($k) => (string)$k)->toArray();
         $userId = \App\Models\User::first()?->id ?? 1;
 
         for ($i = 0; $i < 700; $i++) {
@@ -36,6 +41,34 @@ class IneSeeder2 extends Seeder
                 $faker->lexify('?') .
                 $faker->numerify('###')
             );
+
+            // Sección original impresa en la credencial
+            $seccionCredencial = !empty($seccionCodes)
+                ? (string)$faker->randomElement($seccionCodes)
+                : (string)$faker->numberBetween(1563, 2264);
+
+            // Simulación realista: 85% vive y se captura en su sección, 10% discrepancia, 5% fuera de cobertura
+            if (!empty($seccionCodes) && isset($seccionesVictoria[$seccionCredencial])) {
+                $pct = $faker->numberBetween(1, 100);
+
+                if ($pct <= 85) {
+                    // 1. Coincidente: GPS dentro de la sección de su credencial (pequeño offset del centroide)
+                    $lat = (float)$seccionesVictoria[$seccionCredencial]->lat + $faker->randomFloat(6, -0.0003, 0.0003);
+                    $lng = (float)$seccionesVictoria[$seccionCredencial]->lng + $faker->randomFloat(6, -0.0003, 0.0003);
+                } elseif ($pct <= 95) {
+                    // 2. Discrepancia: Ciudadano con credencial en una sección pero capturado en otra sección distinta
+                    $otraSec = (string)$faker->randomElement(array_values(array_diff($seccionCodes, [$seccionCredencial])));
+                    $lat = (float)($seccionesVictoria[$otraSec]->lat ?? 23.73) + $faker->randomFloat(6, -0.0003, 0.0003);
+                    $lng = (float)($seccionesVictoria[$otraSec]->lng ?? -99.14) + $faker->randomFloat(6, -0.0003, 0.0003);
+                } else {
+                    // 3. Fuera de cobertura: Captura realizada fuera del polígono municipal de Victoria
+                    $lat = $faker->randomFloat(6, 24.350000, 24.700000);
+                    $lng = $faker->randomFloat(6, -99.250000, -99.050000);
+                }
+            } else {
+                $lat = $faker->randomFloat(6, 23.680000, 23.780000);
+                $lng = $faker->randomFloat(6, -99.180000, -99.080000);
+            }
 
             $records[] = [
                 'clave_elector'    => $claveElector,
@@ -51,15 +84,11 @@ class IneSeeder2 extends Seeder
                 'codigo_postal'    => $faker->numberBetween(87000, 87099), // CP de Victoria
                 'municipio'        => 'VICTORIA',
                 'estado'           => 'TAMPS',
-                'seccion'          => !empty($seccionesVictoria) ? $faker->randomElement($seccionesVictoria) : (string) $faker->numberBetween(1563, 2264),
+                'seccion'          => $seccionCredencial,
+                'seccion_gps'      => null, // Se asigna mediante el servicio espacial
                 'vigencia'         => (string) $faker->numberBetween(2024, 2034),
-
-                // Coordenadas estrictas para la mancha urbana de Ciudad Victoria
-                // Latitud: entre 23.6800 (Sur) y 23.7800 (Norte)
-                // Longitud: entre -99.1800 (Oeste) y -99.0800 (Este)
-                'latitud'          => $faker->randomFloat(6, 23.680000, 23.780000),
-                'longitud'         => $faker->randomFloat(6, -99.180000, -99.080000),
-
+                'latitud'          => $lat,
+                'longitud'         => $lng,
                 'user_id'          => $userId,
                 'capturado_en'     => $faker->dateTimeBetween('-1 month', 'now')->format('Y-m-d H:i:s'),
                 'created_at'       => $now,
@@ -74,10 +103,10 @@ class IneSeeder2 extends Seeder
             DB::table('ine_records')->insert($chunk);
         }
 
-        // Auto-sincronizamos territorialmente para garantizar consistencia del 100% con los polígonos
-        $this->command->info('Sincronizando secciones electorales según coordenadas GPS reales...');
-        app(\App\Contracts\SpatialServiceInterface::class)->assignSeccionToIneRecords(force: true);
+        // Sincronizamos territorialmente conservando la sección original y asignando seccion_gps
+        $this->command->info('Sincronizando secciones electorales según coordenadas GPS reales (force: false)...');
+        $res = app(\App\Contracts\SpatialServiceInterface::class)->assignSeccionToIneRecords(force: false);
 
-        $this->command->info('¡700 expedientes ficticios generados y sincronizados territorialmente con éxito!');
+        $this->command->info("¡700 expedientes generados! Asignados por GPS: {$res['asignados']}, Fuera de cobertura: {$res['sin_cobertura']}");
     }
 }

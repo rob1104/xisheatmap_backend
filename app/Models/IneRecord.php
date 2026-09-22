@@ -56,11 +56,6 @@ class IneRecord extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function seccionElectoral()
-    {
-        return $this->belongsTo(SeccionElectoral::class, 'seccion', 'seccion');
-    }
-
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
@@ -72,5 +67,11 @@ class IneRecord extends Model
             ->dontLogIfAttributesChangedOnly(['foto_frente_path', 'foto_reverso_path'])
             // Le da un nombre descriptivo a la acción
             ->setDescriptionForEvent(fn(string $eventName) => "Expediente INE {$eventName}");
+    }
+
+    public function seccionElectoral()
+    {
+        return $this->belongsTo(SeccionElectoral::class,'seccion','seccion');
+        
     }
 }

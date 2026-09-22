@@ -1,0 +1,37 @@
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | SRID (Spatial Reference System Identifier)
+    |--------------------------------------------------------------------------
+    | Estándar WGS84 para coordenadas GPS (EPSG:4326).
+    */
+    'srid' => (int) env('SPATIAL_SRID', 4326),
+
+    /*
+    |--------------------------------------------------------------------------
+    | GIS Database Engine
+    |--------------------------------------------------------------------------
+    | Opciones: 'auto', 'mysql', 'mariadb'.
+    | 'auto' detecta dinámicamente si el servidor PDO es MariaDB o MySQL.
+    */
+    'engine' => env('SPATIAL_ENGINE', 'auto'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Axis Order (Orden de Coordenadas)
+    |--------------------------------------------------------------------------
+    | MySQL 8.0 requiere 'axis-order=long-lat' para WGS84. MariaDB solo acepta 2 args.
+    */
+    'axis_order' => env('SPATIAL_AXIS_ORDER', 'axis-order=long-lat'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ámbito Territorial Predeterminado
+    |--------------------------------------------------------------------------
+    | Entidad 28 (Tamaulipas), Municipio 041 (Ciudad Victoria).
+    */
+    'default_entidad'   => (int) env('SPATIAL_DEFAULT_ENTIDAD', 28),
+    'default_municipio' => (int) env('SPATIAL_DEFAULT_MUNICIPIO', 41),
+];

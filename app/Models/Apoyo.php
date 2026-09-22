@@ -18,6 +18,7 @@ class Apoyo extends Model
         'calle_y_numero',
         'latitud',
         'longitud',
+        'seccion',
         'apoyo',
         'estatus_de_apoyo',
     ];
@@ -27,6 +28,11 @@ class Apoyo extends Model
         return LogOptions::defaults()
             ->logAll()
             ->logOnlyDirty()
-            ->setDescriptionForEvent(fn(string $eventName) => "Apoyo {$eventName}");
+            ->setDescriptionForEvent(function (string $eventName) { return "Apoyo {$eventName}"; });
+    }
+
+    public function seccionElectoral()
+    {
+        return $this->belongsTo(SeccionElectoral::class, 'seccion','seccion');
     }
 }

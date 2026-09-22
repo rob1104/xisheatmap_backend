@@ -33,6 +33,10 @@ class SeccionElectoral extends Model
         'control'          => 'integer',
     ];
 
+    protected $hidden = [
+        'poligono',
+    ];
+
     /**
      * Relación atributiva directa con la INE capturada.
      */
@@ -75,20 +79,25 @@ class SeccionElectoral extends Model
      * IMPORTANTE: En MySQL 8.0 con SRID 4326 y 'axis-order=long-lat', el formato de POINT WKT es (longitud latitud).
      */
     public function scopeContainingPoint(
-    $query,
-    float $latitud,
-    float $longitud
-) {
-    $point = "POINT({$longitud} {$latitud})";
+        $query,
+        float $latitud,
+        float $longitud
+    ) {
+        $point = "POINT({$longitud} {$latitud})";
+        $spatial = app(\App\Contracts\SpatialServiceInterface::class);
 
-    return $query->whereRaw(
-        "ST_Contains(
-            poligono,
-            ST_GeomFromText(?, 4326)
-        )",
-        [$point]
-    );
-}
+        if (method_exists($spatial, 'isMariaDb') && $spatial->isMariaDb()) {
+            return $query->whereRaw(
+                "ST_Contains(poligono, ST_GeomFromText(?, 4326))",
+                [$point]
+            );
+        }
+
+        return $query->whereRaw(
+            "ST_Contains(poligono, ST_GeomFromText(?, 4326, 'axis-order=long-lat'))",
+            [$point]
+        );
+    }
 
     /**
      * Scope para filtrar por municipio (por defecto 41 - Victoria).

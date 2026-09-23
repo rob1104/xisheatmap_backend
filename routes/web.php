@@ -70,6 +70,8 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::resource('apoyos', ApoyoController::class)->except(['create', 'show', 'edit']);
     Route::post('/apoyos/{apoyo}/toggle-status', [ApoyoController::class, 'toggleStatus'])->name('apoyos.toggle-status');
 
+    Route::resource('casas-mesil', \App\Http\Controllers\Admin\CasaMesilController::class)->except(['create', 'show', 'edit']);
+
     // ---------------------------------------------------
     // RUTAS DE PERFIL (Generadas por Breeze)
     // ---------------------------------------------------

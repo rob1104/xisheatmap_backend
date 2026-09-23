@@ -226,6 +226,96 @@ class SpatialTest extends TestCase
     }
 
     /**
+     * Test 5c: Tanto en modo Eloquent como en modo Bulk SQL, la opción --force limpia
+     * seccion_gps si las coordenadas quedan fuera de todos los polígonos.
+     */
+    public function test_force_clears_seccion_gps_when_out_of_coverage_in_both_modes(): void
+    {
+        $this->createTestSeccion('9901');
+        $admin = User::factory()->create(['role' => 'Administrador']);
+
+        // Caso 1: Modo Eloquent con --force
+        $ineEloquent = IneRecord::create([
+            'user_id' => $admin->id,
+            'clave_elector' => 'CLAVEFORCE00000001',
+            'nombre' => 'Fuera Eloquent',
+            'apellido_paterno' => 'Test',
+            'colonia' => 'Norte',
+            'seccion' => '9901',
+            'seccion_gps' => '9901', // Tenía asignada sección previamente
+            'latitud' => 25.50,       // Coordenadas fuera de cualquier polígono
+            'longitud' => -99.14,
+        ]);
+
+        /** @var SpatialServiceInterface $spatial */
+        $spatial = app(SpatialServiceInterface::class);
+
+        $resEloquent = $spatial->assignSeccionToIneRecords(useBulkSql: false, force: true);
+        $this->assertEquals('eloquent', $resEloquent['modo']);
+        $this->assertNull($ineEloquent->fresh()->seccion_gps, 'Modo Eloquent debe limpiar seccion_gps a null si está fuera de cobertura cuando force=true');
+
+        // Caso 2: Modo SQL Bulk con --force
+        $ineBulk = IneRecord::create([
+            'user_id' => $admin->id,
+            'clave_elector' => 'CLAVEFORCE00000002',
+            'nombre' => 'Fuera Bulk',
+            'apellido_paterno' => 'Test',
+            'colonia' => 'Norte',
+            'seccion' => '9901',
+            'seccion_gps' => '9901', // Tenía asignada sección previamente
+            'latitud' => 25.50,       // Coordenadas fuera de cualquier polígono
+            'longitud' => -99.14,
+        ]);
+
+        $resBulk = $spatial->assignSeccionToIneRecords(useBulkSql: true, force: true);
+        $this->assertEquals('sql_bulk', $resBulk['modo']);
+        $this->assertNull($ineBulk->fresh()->seccion_gps, 'Modo SQL Bulk debe limpiar seccion_gps a null si está fuera de cobertura cuando force=true');
+        $this->assertEquals(1, $resBulk['limpiados']);
+
+        // Caso 3: Verificar que un punto que sí cae dentro de un polígono se asigne correctamente en Bulk
+        $ineDentro = IneRecord::create([
+            'user_id' => $admin->id,
+            'clave_elector' => 'CLAVEDENTRO0000001',
+            'nombre' => 'Dentro Bulk',
+            'apellido_paterno' => 'Test',
+            'colonia' => 'Centro',
+            'seccion' => '0000',
+            'seccion_gps' => null,
+            'latitud' => 23.73, // Coordenadas dentro de 9901
+            'longitud' => -99.14,
+        ]);
+
+        $spatial->assignSeccionToIneRecords(useBulkSql: true, force: true);
+        $this->assertEquals('9901', $ineDentro->fresh()->seccion_gps, 'Modo SQL Bulk debe asignar la sección correcta para puntos con cobertura');
+    }
+
+    /**
+     * Test 5d: El comando artisan spatial:assign-ine con --bulk y --force limpia registros fuera de polígono.
+     */
+    public function test_artisan_command_bulk_force_clears_out_of_bounds(): void
+    {
+        $this->createTestSeccion('9901');
+        $admin = User::factory()->create(['role' => 'Administrador']);
+
+        $ine = IneRecord::create([
+            'user_id' => $admin->id,
+            'clave_elector' => 'CLAVECMD0000000001',
+            'nombre' => 'Cmd Test',
+            'apellido_paterno' => 'Test',
+            'colonia' => 'Norte',
+            'seccion' => '9901',
+            'seccion_gps' => '9901',
+            'latitud' => 25.50,
+            'longitud' => -99.14,
+        ]);
+
+        $this->artisan('spatial:assign-ine', ['--bulk' => true, '--force' => true])
+            ->assertSuccessful();
+
+        $this->assertNull($ine->fresh()->seccion_gps, 'El comando artisan con --bulk --force debe limpiar seccion_gps de registros fuera de cobertura');
+    }
+
+    /**
      * Test 6: Auditoría INE protege datos personales (NO expone claves de elector ni coordenadas).
      */
     public function test_audit_ine_records_protects_pii(): void
@@ -310,7 +400,7 @@ class SpatialTest extends TestCase
 
         $admin = User::factory()->create(['role' => 'Administrador']);
 
-        // IneRecords en 9901 (Victoria) y 8801 (Otro)
+        // 1. IneRecord con ubicación territorial real asignada en 9901 (Victoria)
         IneRecord::create([
             'user_id' => $admin->id,
             'clave_elector' => 'CLAVEVICT000000001',
@@ -319,10 +409,27 @@ class SpatialTest extends TestCase
             'colonia' => 'Centro',
             'municipio' => 'VICTORIA',
             'seccion' => '9901',
+            'seccion_gps' => '9901',
             'latitud' => 23.73,
             'longitud' => -99.14,
         ]);
 
+        // 2. IneRecord con sección impresa '9901' pero sin clasificación GPS (fuera de cobertura / sin asignar).
+        // No debe mezclarse con la ubicación territorial real ni sumarse a 9901.
+        IneRecord::create([
+            'user_id' => $admin->id,
+            'clave_elector' => 'CLAVENOGPS00000001',
+            'nombre' => 'Sin Ubicacion',
+            'apellido_paterno' => 'GPS',
+            'colonia' => 'Desconocida',
+            'municipio' => 'VICTORIA',
+            'seccion' => '9901',
+            'seccion_gps' => null,
+            'latitud' => 25.50,
+            'longitud' => -99.14,
+        ]);
+
+        // 3. IneRecord en Municipio 99 (Otro)
         IneRecord::create([
             'user_id' => $admin->id,
             'clave_elector' => 'CLAVEOUT0000000001',
@@ -331,6 +438,7 @@ class SpatialTest extends TestCase
             'colonia' => 'Norte',
             'municipio' => 'OTRO',
             'seccion' => '8801',
+            'seccion_gps' => '8801',
             'latitud' => 25.00,
             'longitud' => -99.14,
         ]);
@@ -370,6 +478,7 @@ class SpatialTest extends TestCase
         $feature = $geoJson['features'][0];
         $this->assertEquals('9901', $feature['properties']['seccion']);
         $this->assertEquals(41, $feature['properties']['municipio']);
+        // Solo el registro con seccion_gps = '9901' debe contabilizarse en el mapa territorial
         $this->assertEquals(1, $feature['properties']['total_simpatizantes']);
         $this->assertEquals(1, $feature['properties']['total_apoyos']);
         $this->assertEquals(100.0, $feature['properties']['porcentaje']);

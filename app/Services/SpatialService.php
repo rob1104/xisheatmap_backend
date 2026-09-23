@@ -163,9 +163,28 @@ class SpatialService implements SpatialServiceInterface
                     WHERE {$whereClause}
             ");
 
+            $limpiados = 0;
+            if ($force) {
+                // Al forzar, los registros con coordenadas GPS que queden fuera de cualquier polígono
+                // deben limpiar su seccion_gps para que ambos modos (Eloquent y SQL Bulk) sean consistentes.
+                $limpiados = DB::affectingStatement("
+                    UPDATE ine_records i
+                        LEFT JOIN secciones_electorales s
+                          ON ST_Contains(s.poligono, {$pointSql})
+                        SET i.seccion_gps = NULL,
+                            i.updated_at = NOW()
+                        WHERE i.latitud IS NOT NULL
+                          AND i.longitud IS NOT NULL
+                          AND i.seccion_gps IS NOT NULL
+                          AND s.id IS NULL
+                ");
+            }
+
             return [
                 'modo' => 'sql_bulk',
                 'asignados' => $afectados,
+                'limpiados' => $limpiados,
+                'sin_cobertura' => $force ? $limpiados : 'N/A',
             ];
         }
 
@@ -280,14 +299,18 @@ class SpatialService implements SpatialServiceInterface
         $metricasApoyos = [];
 
         // Delimitar el alcance territorial de los conteos exclusivamente a las secciones del municipio
+        // Se contabiliza estrictamente por la ubicación territorial real (seccion_gps)
+        // Registros sin clasificación o fuera de cobertura se dejan sin asignar
         if ($seccionCodes->isNotEmpty()) {
-            $metricasInes = IneRecord::whereIn(DB::raw('COALESCE(seccion_gps, seccion)'), $seccionCodes)
-                ->select(DB::raw('COALESCE(seccion_gps, seccion) as sec_code'), DB::raw('COUNT(*) as total'))
-                ->groupBy(DB::raw('COALESCE(seccion_gps, seccion)'))
+            $metricasInes = IneRecord::whereIn('seccion_gps', $seccionCodes)
+                ->whereNotNull('seccion_gps')
+                ->select('seccion_gps as sec_code', DB::raw('COUNT(*) as total'))
+                ->groupBy('seccion_gps')
                 ->pluck('total', 'sec_code')
                 ->toArray();
 
             $metricasApoyos = Apoyo::whereIn('seccion', $seccionCodes)
+                ->whereNotNull('seccion')
                 ->select('seccion', DB::raw('COUNT(*) as total'))
                 ->groupBy('seccion')
                 ->pluck('total', 'seccion')

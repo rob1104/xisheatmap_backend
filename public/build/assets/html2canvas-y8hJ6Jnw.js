@@ -1,1 +1,0 @@
-import{n as e}from"./OrgChart-DLXCn0x8.js";export default e();

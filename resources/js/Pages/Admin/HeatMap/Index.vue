@@ -33,6 +33,11 @@
                             <span class="text-xl font-extrabold text-amber-600">{{ apoyosVisibles }}</span>
                             <span class="text-xs text-amber-600 ml-1 font-semibold">apoyos</span>
                         </div>
+                        <div v-if="viendoCasas" class="flex items-baseline bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                            <span class="text-xl font-extrabold text-blue-600">{{ casasVisibles }}</span>
+                            <span class="text-xs text-blue-600 ml-1 font-semibold">casas</span>
+                        </div>
+
                     </div>
                 </div>
 
@@ -51,6 +56,11 @@
                         <div :class="viendoApoyos ? 'bg-amber-500 animate-pulse' : 'bg-gray-300'" class="w-2 h-2 rounded-full"></div>
                         Apoyos
                     </button>
+                    <button @click="toggleCasas" :class="viendoCasas ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white border-gray-300 text-gray-700'" class="px-4 py-2 border rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+                        <div :class="viendoCasas ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'" class="w-2 h-2 rounded-full"></div>
+                        Casas Mesil
+                    </button>
+
 
                     <button @click="changeRadius" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-semibold transition-colors">
                         Radio
@@ -145,6 +155,45 @@
             </div>
         </Modal>
 
+        <Modal :show="mostrarModalCasa" @close="cerrarModalCasa">
+            <div class="p-6">
+                <h2 class="text-lg font-medium text-gray-900 mb-4">
+                    Registrar Nueva Casa Mesil
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <InputLabel for="nombre_casa" value="Nombre" />
+                        <TextInput id="nombre_casa" v-model="formCasa.nombre" type="text" class="mt-1 block w-full" />
+                        <InputError :message="formCasa.errors.nombre ? formCasa.errors.nombre[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="telefono_casa" value="Teléfono" />
+                        <TextInput id="telefono_casa" v-model="formCasa.telefono" type="text" class="mt-1 block w-full" />
+                        <InputError :message="formCasa.errors.telefono ? formCasa.errors.telefono[0] : ''" class="mt-2" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="direccion_casa" value="Dirección" />
+                        <TextInput id="direccion_casa" v-model="formCasa.direccion" type="text" class="mt-1 block w-full" />
+                        <InputError :message="formCasa.errors.direccion ? formCasa.errors.direccion[0] : ''" class="mt-2" />
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <SecondaryButton @click="cerrarModalCasa">
+                        Cancelar
+                    </SecondaryButton>
+
+                    <PrimaryButton class="ml-3" :class="{ 'opacity-25': formCasa.processing }" :disabled="formCasa.processing" @click="guardarCasa">
+                        Guardar Casa Mesil
+                    </PrimaryButton>
+                </div>
+            </div>
+        </Modal>
+
+
     </AdminLayout>
 </template>
 
@@ -163,6 +212,7 @@ import axios from 'axios'
 const props = defineProps({
     coordenadas: Array,
     apoyos: Array,
+    casas: Array,
     googleApiKey: String
 })
 
@@ -172,9 +222,11 @@ const cargando = ref(true)
 // Variables reactivas
 const puntosVisibles = ref(props.coordenadas.length)
 const apoyosVisibles = ref(props.apoyos ? props.apoyos.length : 0)
+const casasVisibles = ref(props.casas ? props.casas.length : 0)
 const viendoSimpatizantes = ref(true)
 const viendoBrigadistas = ref(false)
 const viendoApoyos = ref(false)
+const viendoCasas = ref(false)
 
 let map = null
 let heatmap = null
@@ -183,6 +235,7 @@ let heatMapData = []
 // Variables para brigadistas y apoyos
 let marcadoresBrigadistas = {}
 let marcadoresApoyos = []
+let marcadoresCasas = []
 let intervaloRastreo = null
 let infoWindow = null
 let contextMenu = null
@@ -202,6 +255,51 @@ const formApoyo = reactive({
     processing: false,
     errors: {}
 })
+
+const mostrarModalCasa = ref(false)
+const formCasa = reactive({
+    nombre: '',
+    telefono: '',
+    direccion: '',
+    latitud: '',
+    longitud: '',
+    processing: false,
+    errors: {}
+})
+
+const cerrarModalCasa = () => {
+    mostrarModalCasa.value = false;
+    formCasa.errors = {};
+}
+
+const guardarCasa = async () => {
+    formCasa.processing = true;
+    try {
+        const res = await axios.post('/casas-mesil', formCasa, {
+            headers: { 'Accept': 'application/json' }
+        });
+        if (res.data.success) {
+            cerrarModalCasa();
+            const nuevaCasa = res.data.casa;
+            if (props.casas) {
+                props.casas.push(nuevaCasa);
+            }
+            if (viendoCasas.value) {
+                agregarUnMarcadorCasa(nuevaCasa);
+                if (map) window.google.maps.event.trigger(map, 'idle');
+            }
+        }
+    } catch (error) {
+        if (error.response && error.response.status === 422) {
+            formCasa.errors = error.response.data.errors;
+        } else {
+            console.error(error);
+        }
+    } finally {
+        formCasa.processing = false;
+    }
+}
+
 
 const cerrarModalApoyo = () => {
     mostrarModalApoyo.value = false;
@@ -304,21 +402,34 @@ const initMap = () => {
             })
         }
         apoyosVisibles.value = countApoyos
+
+        let countCasas = 0
+        if (viendoCasas.value) {
+            marcadoresCasas.forEach(marker => {
+                if (bounds.contains(marker.position)) countCasas++
+            })
+        }
+        casasVisibles.value = countCasas
+
     })
 
     contextMenu = new window.google.maps.InfoWindow();
 
     map.addListener('contextmenu', (e) => {
-        if (!viendoApoyos.value) return;
+        if (!viendoApoyos.value && !viendoCasas.value) return;
 
         const lat = e.latLng.lat();
         const lng = e.latLng.lng();
 
         const contentString = `
-            <div class="p-1">
+            <div class="p-1 space-y-2">
                 <button id="btn-add-context" class="w-full text-white text-xs px-4 py-2 rounded font-semibold shadow-sm transition-colors bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     Registrar Apoyo Aquí
+                </button>
+                <button id="btn-add-context-casa" class="w-full text-white text-xs px-4 py-2 rounded font-semibold shadow-sm transition-colors bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    Registrar Casa Mesil Aquí
                 </button>
             </div>
         `;
@@ -461,6 +572,19 @@ const toggleBrigadistas = () => {
         Object.values(marcadoresBrigadistas).forEach(marker => marker.map = null);
         marcadoresBrigadistas = {};
     }
+}
+
+
+const toggleCasas = () => {
+    viendoCasas.value = !viendoCasas.value;
+    
+    if (viendoCasas.value) {
+        renderizarCasas();
+    } else {
+        marcadoresCasas.forEach(marker => marker.map = null);
+        marcadoresCasas = [];
+    }
+    if (map) window.google.maps.event.trigger(map, 'idle');
 }
 
 const toggleApoyos = () => {
@@ -623,6 +747,100 @@ const agregarUnMarcador = (apoyo) => {
 
     marcadoresApoyos.push(marker);
 };
+
+
+const buildCasaHtml = (casa) => {
+    return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3B82F6" stroke="#1E3A8A" stroke-width="1.5" class="w-10 h-10 drop-shadow-lg relative z-10 transition-transform duration-200 hover:scale-110">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+        </svg>
+        <div class="absolute top-11 bg-slate-900 text-white px-3 py-1.5 rounded-lg shadow-xl border border-slate-700 text-xs font-bold whitespace-nowrap z-30 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none mt-1">
+            ${casa.nombre || 'Casa Mesil'}
+        </div>
+    `;
+};
+
+const agregarUnMarcadorCasa = (casa) => {
+    if (!infoWindow) {
+        infoWindow = new window.google.maps.InfoWindow();
+    }
+    
+    const posicion = new window.google.maps.LatLng(parseFloat(casa.latitud), parseFloat(casa.longitud));
+    
+    const pinElement = document.createElement('div');
+    pinElement.className = 'relative flex flex-col items-center justify-center cursor-pointer group';
+    pinElement.innerHTML = buildCasaHtml(casa);
+
+    const marker = new window.google.maps.marker.AdvancedMarkerElement({
+        position: posicion,
+        map: map,
+        content: pinElement,
+        title: ''
+    });
+
+    pinElement.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const contentString = `
+            <div class="p-1">
+                <button id="btn-delete-casa-${casa.id}" class="w-full text-white text-xs px-4 py-2 rounded font-semibold shadow-sm transition-colors bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    Eliminar Casa Mesil
+                </button>
+            </div>
+        `;
+        
+        contextMenu.setContent(contentString);
+        contextMenu.open({
+            anchor: marker,
+            map: map
+        });
+
+        setTimeout(() => {
+            const btn = document.getElementById(`btn-delete-casa-${casa.id}`);
+            if (btn) {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('¿Estás seguro de eliminar esta casa mesil?')) {
+                        contextMenu.close();
+                        return;
+                    }
+                    
+                    btn.disabled = true;
+                    btn.innerText = 'Eliminando...';
+                    try {
+                        const res = await axios.delete(`/casas-mesil/${casa.id}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (res.data.success) {
+                            marker.map = null;
+                            marcadoresCasas = marcadoresCasas.filter(m => m !== marker);
+                            const index = props.casas.findIndex(a => a.id === casa.id);
+                            if (index !== -1) {
+                                props.casas.splice(index, 1);
+                            }
+                            contextMenu.close();
+                            if (map) window.google.maps.event.trigger(map, 'idle');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        btn.disabled = false;
+                        btn.innerText = 'Error';
+                    }
+                });
+            }
+        }, 100);
+    });
+
+    marcadoresCasas.push(marker);
+};
+
+const renderizarCasas = () => {
+    if (!props.casas) return;
+    props.casas.forEach(casa => {
+        agregarUnMarcadorCasa(casa);
+    });
+}
 
 const renderizarApoyos = () => {
     if (!props.apoyos) {

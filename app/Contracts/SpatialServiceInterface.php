@@ -17,6 +17,11 @@ interface SpatialServiceInterface
     public function assignSeccionToApoyos(bool $useBulkSql = false): array;
 
     /**
+     * Auto-asigna o sincroniza la sección territorial a los registros de simpatizantes INE.
+     */
+    public function assignSeccionToIneRecords(bool $useBulkSql = false, bool $force = false): array;
+
+    /**
      * Audita la consistencia entre la sección impresa en el INE y la coordenada GPS.
      */
     public function auditIneRecords(int $limit = 500): array;

@@ -140,6 +140,97 @@ class SpatialService implements SpatialServiceInterface
     }
 
     /**
+     * Auto-asigna o sincroniza la sección territorial a los registros de simpatizantes INE según su GPS real.
+     * Soporta ejecución por lotes con Eloquent o vía UPDATE JOIN masivo adaptado al motor.
+     */
+    public function assignSeccionToIneRecords(bool $useBulkSql = false, bool $force = false): array
+    {
+        if ($useBulkSql) {
+            $pointSql = $this->isMariaDb()
+                ? "ST_GeomFromText(CONCAT('POINT(', i.longitud, ' ', i.latitud, ')'), {$this->srid})"
+                : "ST_GeomFromText(CONCAT('POINT(', i.longitud, ' ', i.latitud, ')'), {$this->srid}, '{$this->axisOrder}')";
+
+            $whereClause = $force
+                ? "i.latitud IS NOT NULL AND i.longitud IS NOT NULL AND (i.seccion_gps IS NULL OR i.seccion_gps != s.seccion)"
+                : "i.seccion_gps IS NULL AND i.latitud IS NOT NULL AND i.longitud IS NOT NULL";
+
+            $afectados = DB::affectingStatement("
+                UPDATE ine_records i
+                    JOIN secciones_electorales s
+                      ON ST_Contains(s.poligono, {$pointSql})
+                    SET i.seccion_gps = s.seccion,
+                        i.updated_at = NOW()
+                    WHERE {$whereClause}
+            ");
+
+            $limpiados = 0;
+            if ($force) {
+                // Al forzar, los registros con coordenadas GPS que queden fuera de cualquier polígono
+                // deben limpiar su seccion_gps para que ambos modos (Eloquent y SQL Bulk) sean consistentes.
+                $limpiados = DB::affectingStatement("
+                    UPDATE ine_records i
+                        LEFT JOIN secciones_electorales s
+                          ON ST_Contains(s.poligono, {$pointSql})
+                        SET i.seccion_gps = NULL,
+                            i.updated_at = NOW()
+                        WHERE i.latitud IS NOT NULL
+                          AND i.longitud IS NOT NULL
+                          AND i.seccion_gps IS NOT NULL
+                          AND s.id IS NULL
+                ");
+            }
+
+            return [
+                'modo' => 'sql_bulk',
+                'asignados' => $afectados,
+                'limpiados' => $limpiados,
+                'sin_cobertura' => $force ? $limpiados : 'N/A',
+            ];
+        }
+
+        $asignados = 0;
+        $sinCambios = 0;
+        $sinCobertura = 0;
+        $totalProcesados = 0;
+
+        $query = IneRecord::whereNotNull('latitud')->whereNotNull('longitud');
+        if (!$force) {
+            $query->whereNull('seccion_gps');
+        }
+
+        $query->chunkById(200, function ($records) use (&$asignados, &$sinCambios, &$sinCobertura, &$totalProcesados, $force) {
+            foreach ($records as $record) {
+                $totalProcesados++;
+                $seccion = $this->findSeccionByPoint((float)$record->latitud, (float)$record->longitud);
+
+                if ($seccion) {
+                    if ($record->seccion_gps !== $seccion->seccion) {
+                        $record->seccion_gps = $seccion->seccion;
+                        $record->saveQuietly();
+                        $asignados++;
+                    } else {
+                        $sinCambios++;
+                    }
+                } else {
+                    $sinCobertura++;
+                    if ($force && $record->seccion_gps !== null) {
+                        $record->seccion_gps = null;
+                        $record->saveQuietly();
+                    }
+                }
+            }
+        });
+
+        return [
+            'modo' => 'eloquent',
+            'total_procesados' => $totalProcesados,
+            'asignados' => $asignados,
+            'sin_cambios' => $sinCambios,
+            'sin_cobertura' => $sinCobertura
+        ];
+    }
+
+    /**
      * Audita la consistencia entre la sección impresa en el INE y las coordenadas GPS.
      * No expone claves de elector ni coordenadas exactas por protección de datos (PII).
      */
@@ -208,14 +299,18 @@ class SpatialService implements SpatialServiceInterface
         $metricasApoyos = [];
 
         // Delimitar el alcance territorial de los conteos exclusivamente a las secciones del municipio
+        // Se contabiliza estrictamente por la ubicación territorial real (seccion_gps)
+        // Registros sin clasificación o fuera de cobertura se dejan sin asignar
         if ($seccionCodes->isNotEmpty()) {
-            $metricasInes = IneRecord::whereIn('seccion', $seccionCodes)
-                ->select('seccion', DB::raw('COUNT(*) as total'))
-                ->groupBy('seccion')
-                ->pluck('total', 'seccion')
+            $metricasInes = IneRecord::whereIn('seccion_gps', $seccionCodes)
+                ->whereNotNull('seccion_gps')
+                ->select('seccion_gps as sec_code', DB::raw('COUNT(*) as total'))
+                ->groupBy('seccion_gps')
+                ->pluck('total', 'sec_code')
                 ->toArray();
 
             $metricasApoyos = Apoyo::whereIn('seccion', $seccionCodes)
+                ->whereNotNull('seccion')
                 ->select('seccion', DB::raw('COUNT(*) as total'))
                 ->groupBy('seccion')
                 ->pluck('total', 'seccion')

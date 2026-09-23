@@ -27,6 +27,7 @@ class IneRecord extends Model
         'municipio',
         'estado',
         'seccion',
+        'seccion_gps',
         'vigencia',
         'latitud',
         'longitud',
@@ -71,7 +72,16 @@ class IneRecord extends Model
 
     public function seccionElectoral()
     {
-        return $this->belongsTo(SeccionElectoral::class,'seccion','seccion');
-        
+        return $this->belongsTo(SeccionElectoral::class, 'seccion', 'seccion');
+    }
+
+    public function seccionGpsElectoral()
+    {
+        return $this->belongsTo(SeccionElectoral::class, 'seccion_gps', 'seccion');
+    }
+
+    public function getTieneDiscrepanciaAttribute(): bool
+    {
+        return !empty($this->seccion) && !empty($this->seccion_gps) && $this->seccion !== $this->seccion_gps;
     }
 }

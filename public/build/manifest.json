@@ -155,7 +155,7 @@
     ]
   },
   "resources/js/Pages/Admin/HeatMap/Index.vue": {
-    "file": "assets/Index-B8lR5vzC.js",
+    "file": "assets/Index-D5rjJ2Gf.js",
     "name": "Index",
     "src": "resources/js/Pages/Admin/HeatMap/Index.vue",
     "isDynamicEntry": true,
@@ -412,7 +412,7 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-CuU5qyb_.js",
+    "file": "assets/app-BmpAEy0K.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,

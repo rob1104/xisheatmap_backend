@@ -15,7 +15,7 @@ class HeatMapController extends Controller
         // Filtramos solo los registros que lograron geolocalizarse
         $coordenadas = IneRecord::whereNotNull('latitud')
             ->whereNotNull('longitud')
-            ->select('latitud', 'longitud', 'colonia', 'seccion')
+            ->select('latitud', 'longitud', 'colonia', 'seccion', 'seccion_gps')
             ->get();
 
         $apoyos = Apoyo::whereNotNull('latitud')

@@ -35,7 +35,7 @@ class ListaNominalDetalle extends Model
 
     public function corte(): BelongsTo
     {
-        return $this->BelongsTo(ListaNominalCorte::class, "lista_nominal_corte_id");
+        return $this->belongsTo(ListaNominalCorte::class, "lista_nominal_corte_id");
     }
 
     public function seccionElectoral(): BelongsTo

@@ -47,7 +47,6 @@ class ListaNominalCorte extends Model
         return LogOptions::defaults()
             ->logFillable()
             ->logOnlyDirty()
-            ->setDescriptionForEvent(fn(string $eventName) => "Corte de Lista Nominal
-            {$eventName}");
+            ->setDescriptionForEvent(fn(string $eventName) => "Corte de Lista Nominal {$eventName}");
     }
 }

@@ -1,0 +1,34 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class ListaNominalDetalle extends Model
+{
+    use HasFactory;
+
+    protected $table = "lista_nominal_detalles";
+
+    protected $fillables = [
+        "lista_nominal_corte_id",
+        "seccion_electoral_id",
+        "total_lista_nominal",
+        "padron_electoral",
+        "hombre",
+        "mujeres",
+        "no_binario",
+    ];
+
+    protected function corte(): BelongsTo
+    {
+        return $this->BelongsTo(ListaNominalCorte::class, "lista_nominal_corte_id");
+    }
+
+    protected function seccionElectoral(): BelongsTo
+    {
+        return $this->belongsTo(SeccionElectoral::class, "seccion_electoral_id");
+    }
+}

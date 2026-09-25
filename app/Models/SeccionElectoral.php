@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 
 class SeccionElectoral extends Model
@@ -105,5 +106,16 @@ class SeccionElectoral extends Model
     public function scopeForMunicipio($query, int $municipio = 41)
     {
         return $query->where('municipio', $municipio);
+    }
+
+    public function listaNominalDetalles(): HasMany
+    {
+        return $this->hasMany(ListaNominalDetalle::class, 'seccion_electoral_id');
+    }
+
+    public function listaNominalActiva(): HasOne
+    {
+        return $this->hasOne(ListaNominalDetalle::class,'seccion_electoral_id')
+            ->whereRelation('corte','is_active', true);
     }
 }

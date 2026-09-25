@@ -27,7 +27,7 @@ class ListaNominalCorte extends Model
         ];
     }
 
-    public function destalles(): HasMany
+    public function detalles(): HasMany
     {
         return $this->hasMany(ListaNominalDetalle::class, "lista_nominal_corte_id");
     }

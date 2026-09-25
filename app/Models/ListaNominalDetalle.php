@@ -17,7 +17,7 @@ class ListaNominalDetalle extends Model
         "seccion_electoral_id",
         "total_lista_nominal",
         "padron_electoral",
-        "hombre",
+        "hombres",
         "mujeres",
         "no_binario",
     ];

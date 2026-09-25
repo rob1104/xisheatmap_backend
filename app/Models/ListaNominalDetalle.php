@@ -12,7 +12,7 @@ class ListaNominalDetalle extends Model
 
     protected $table = "lista_nominal_detalles";
 
-    protected $fillables = [
+    protected $fillable = [
         "lista_nominal_corte_id",
         "seccion_electoral_id",
         "total_lista_nominal",
@@ -22,12 +22,23 @@ class ListaNominalDetalle extends Model
         "no_binario",
     ];
 
-    protected function corte(): BelongsTo
+    protected function casts(): array
+    {
+        return [
+            'total_lista_nominal' => 'integer',
+            'padron_electoral'    => 'integer',
+            'hombres'             => 'integer',
+            'mujeres'             => 'integer',
+            'no_binario'          => 'integer',
+        ];
+    }
+
+    public function corte(): BelongsTo
     {
         return $this->BelongsTo(ListaNominalCorte::class, "lista_nominal_corte_id");
     }
 
-    protected function seccionElectoral(): BelongsTo
+    public function seccionElectoral(): BelongsTo
     {
         return $this->belongsTo(SeccionElectoral::class, "seccion_electoral_id");
     }

@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\HasFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -12,7 +12,7 @@ class ListaNominalCorte extends Model
 {
     use HasFactory, LogsActivity;
 
-    protected $fillables = [
+    protected $fillable = [
         "fecha_corte",
         "fuente",
         "descripcion",
@@ -27,9 +27,9 @@ class ListaNominalCorte extends Model
         ];
     }
 
-    public function transactions(): HasMany
+    public function destalles(): HasMany
     {
-        return $this->hasMany(ListaNominalCorte::class, "lista_nominal_corte_id");
+        return $this->hasMany(ListaNominalDetalle::class, "lista_nominal_corte_id");
     }
 
     public function scopeActive($query)
@@ -37,7 +37,7 @@ class ListaNominalCorte extends Model
         return $query->where("is_active", true);
     }
 
-    public function scopeLatestFirts($query)
+    public function scopeLatestFirst($query)
     {
         return $query->orderBy("fecha_corte", "desc");
     }

@@ -41,7 +41,7 @@
                     </div>
                 </div>
 
-                <div class="flex gap-2 w-full md:w-auto justify-end">
+                <div class="flex flex-wrap gap-2 w-full md:w-auto justify-end">
                     <button @click="toggleHeatmap" :class="viendoSimpatizantes ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white border-gray-300 text-gray-700'" class="px-4 py-2 border rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
                         <div :class="viendoSimpatizantes ? 'bg-indigo-500 animate-pulse' : 'bg-gray-300'" class="w-2 h-2 rounded-full"></div>
                         Simpatizantes
@@ -66,7 +66,7 @@
                         Radio
                     </button>
 
-                    <!-- Botón Capa Secciones Electorales -->
+                    <!-- botón Capa Secciones Electorales -->
                     <button
                         @click="toggleSecciones"
                         :class="viendoSecciones ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white border-gray-300 text-gray-700'"
@@ -82,11 +82,53 @@
                         </span>
                         <span v-else>Secciones</span>
                     </button>
+
+                    <!-- Selector de vista de la capa de secciones -->
+                    <div
+                        v-if="viendoSecciones && resumenSecciones"
+                        class="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm font-semibold"
+                        role="group"
+                        aria-label="Colorear secciones por"
+                    >
+                        <button
+                            type="button"
+                            @click="modoSecciones = 'cobertura'"
+                            :aria-pressed="modoSecciones === 'cobertura'"
+                            :class="modoSecciones === 'cobertura' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                            class="px-3 py-2 transition-colors"
+                        >
+                            Cobertura LN%
+                        </button>
+                        <button
+                            type="button"
+                            @click="modoSecciones = 'simpatizantes'"
+                            :aria-pressed="modoSecciones === 'simpatizantes'"
+                            :class="modoSecciones === 'simpatizantes' ? 'bg-blue-700 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                            class="px-3 py-2 border-l border-gray-300 transition-colors"
+                        >
+                            Simpatizantes
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <div class="flex-1 bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden relative min-h-[600px]">
                 <div ref="mapContainer" class="absolute inset-0 w-full h-full"></div>
+
+                <!-- simpatizantes sin clasificación territorial -->
+                <div v-if="viendoSecciones && resumenSecciones?.simpatizantes" class="absolute top-16 right-3 z-[5]">
+                    <WidgetSinClasificacion :simpatizantes="resumenSecciones.simpatizantes" />
+                </div>
+
+                <!-- leyenda de la capa de secciones -->
+                <div v-if="viendoSecciones && resumenSecciones" class="absolute bottom-6 left-3 z-[5]">
+                    <LeyendaCobertura
+                        :modo="modoSecciones"
+                        :tope="topeCobertura"
+                        :corte-activo="resumenSecciones.corte_activo || null"
+                        :datos-de-ejemplo="!!resumenSecciones._datos_de_ejemplo"
+                    />
+                </div>
 
                 <div v-if="cargando" class="absolute inset-0 bg-white bg-opacity-75 backdrop-blur-sm flex flex-col items-center justify-center z-10">
                     <svg class="animate-spin h-10 w-10 text-indigo-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -198,7 +240,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { Head } from '@inertiajs/vue3'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import Modal from '@/Components/Modal.vue'
@@ -208,6 +250,11 @@ import InputError from '@/Components/InputError.vue'
 import PrimaryButton from '@/Components/PrimaryButton.vue'
 import SecondaryButton from '@/Components/SecondaryButton.vue'
 import axios from 'axios'
+import LeyendaCobertura from '@/Components/Mapa/LeyendaCobertura.vue'
+import WidgetSinClasificacion from '@/Components/Mapa/WidgetSinClasificacion.vue'
+import { COLOR_SIN_DATO, calcularTopeEscala, colorPorCobertura, obtenerCobertura } from '@/Utils/coberturaEscala.js'
+import { construirInfoWindowSeccion } from '@/Utils/infoWindowSeccion.js'
+import { enriquecerGeoJsonConMock, mockActivo } from '@/Utils/listaNominalMock.js'
 
 const props = defineProps({
     coordenadas: Array,
@@ -884,33 +931,55 @@ let seccionesLayer = null
 let geoJsonSeccionesCache = null
 let seccionInfoWindow = null
 
+// Lista Nominal (FE-2, FE-3, FE-4)
+const modoSecciones = ref('cobertura')   // 'cobertura' | 'simpatizantes'
+const resumenSecciones = ref(null)       // summary del endpoint secciones-geojson
+const topeCobertura = ref(10)            // tope de la escala continua (%)
+
 // Función de color temático (Coropletas)
 const obtenerColorPorMetrica = (simpatizantes) => {
-    if (simpatizantes >= 100) return "#1e3a8a"; // Azul marino (muy alta densidad)
+    if (simpatizantes >= 100) return "#1e3a8a"; // Azul marino 
     if (simpatizantes >= 50)  return '#2563eb'; // Azul intenso
     if (simpatizantes >= 20)  return '#60a5fa'; // Azul medio
     if (simpatizantes > 0)   return '#93c5fd'; // Azul claro
-    return '#e2e8f0';                          // Gris claro neutro (sin registros)
+    return '#e2e8f0';                          // Gris claro neutro
 }
+
+// estilo de cada sección. En vista "cobertura" usa la escala continua;
+// las secciones sin Lista Nominal quedan sin relleno y con borde gris.
+const estiloSeccion = (feature) => {
+    const base = { strokeWeight: 1.2, strokeOpacity: 0.8, cursor: 'pointer' }
+
+    if (modoSecciones.value === 'cobertura') {
+        const cobertura = obtenerCobertura({ porcentaje_cobertura: feature.getProperty('porcentaje_cobertura') })
+        if (cobertura === null || !feature.getProperty('total_lista_nominal')) {
+            return { ...base, fillColor: '#ffffff', fillOpacity: 0, strokeColor: COLOR_SIN_DATO, strokeWeight: 1.5 }
+        }
+        return {
+            ...base,
+            fillColor: colorPorCobertura(cobertura, topeCobertura.value),
+            fillOpacity: 0.6,
+            strokeColor: '#0d366b',
+            strokeOpacity: 0.55,
+        }
+    }
+
+    const simpatizantes = feature.getProperty('total_simpatizantes') || 0
+    return { ...base, fillColor: obtenerColorPorMetrica(simpatizantes), fillOpacity: 0.35, strokeColor: '#1e40af' }
+}
+
+// Al cambiar de vista se vuelve a pintar la capa
+watch(modoSecciones, () => {
+    if (seccionesLayer) seccionesLayer.setStyle(estiloSeccion)
+})
 
 const initSeccionesLayer = () => {
     // Instanciar capa independiente y ventana de información
     seccionesLayer = new window.google.maps.Data({ map: null })
     seccionInfoWindow = new window.google.maps.InfoWindow()
 
-    // Estilo de polígono (basado en sus propiedades GeoJSON)
-    seccionesLayer.setStyle((feature) => {
-        const simpatizantes = feature.getProperty('total_simpatizantes') || 0
-
-        return {
-            fillColor: obtenerColorPorMetrica(simpatizantes),
-            fillOpacity: 0.35,
-            strokeColor: '#1e40af',
-            strokeWeight: 1.2,
-            strokeOpacity: 0.8,
-            cursor: 'pointer'
-        }
-    })
+    // Estilo de polígono según la vista elegida (cobertura % o conteo absoluto)
+    seccionesLayer.setStyle(estiloSeccion)
 
     // Hover: Resalta los polígonos al pasar el cursor y restaura al salir
     seccionesLayer.addListener('mouseover', (event) => {
@@ -925,39 +994,12 @@ const initSeccionesLayer = () => {
         seccionesLayer.revertStyle()
     })
 
-    // Mostrar popup InfoWindow con el desglose de métricas
+    // Mostrar popup InfoWindow con cobertura electoral 
     seccionesLayer.addListener('click', (event) => {
-        const seccion = event.feature.getProperty('seccion')
-        const df = event.feature.getProperty('distrito_federal')
-        const dl = event.feature.getProperty('distrito_local')
-        const tipo = event.feature.getProperty('tipo') === 1 ? 'Urbana' : 'Rural'
-        const simpatizantes = event.feature.getProperty('total_simpatizantes') || 0
-        const apoyos = event.feature.getProperty('total_apoyos') || 0
-        const porcentaje = event.feature.getProperty('porcentaje') ?? event.feature.getProperty('porcentaje_simpatizantes') ?? 0
+        const propiedades = {}
+        event.feature.forEachProperty((valor, clave) => { propiedades[clave] = valor })
 
-        const contenido = `
-            <div class="p-3 font-sans text-slate-800" style="min-width: 200px;">
-                <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200">
-                    <span class="text-xs font-bold uppercase tracking-wider text-indigo-600">Sección Electoral</span>
-                    <span class="text-base font-extrabold text-gray-900">${seccion}</span>
-                </div>
-                <div class="space-y-1 text-xs text-gray-600 mb-3">
-                    <div class="flex justify-between"><span>Distrito Federal:</span><strong class="text-gray-800">${df}</strong></div>
-                    <div class="flex justify-between"><span>Distrito Local:</span><strong class="text-gray-800">${dl}</strong></div>
-                    <div class="flex justify-between"><span>Tipo:</span> <strong class="text-gray-800">${tipo}</strong></div>
-                </div>
-                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-center">
-                    <div class="bg-indigo-50 p-2 rounded border border-indigo-100">
-                        <div class="text-lg font-black text-indigo-600">${simpatizantes}</div>
-                        <div class="text-[10px] uppercase font-semibold text-indigo-500">Simpatizantes (${porcentaje}%)</div>
-                    </div>
-                    <div class="bg-amber-50 p-2 rounded border border-amber-100">
-                        <div class="text-lg font-black text-amber-600">${apoyos}</div>
-                        <div class="text-[10px] uppercase font-semibold text-amber-500">Apoyos</div>
-                    </div>
-                </div>
-            </div>
-        `
+        const contenido = construirInfoWindowSeccion(propiedades, resumenSecciones.value?.corte_activo || null)
 
         seccionInfoWindow.setContent(contenido)
         seccionInfoWindow.setPosition(event.latLng)
@@ -986,7 +1028,18 @@ const toggleSecciones = async () => {
             } catch (errWeb) {
                 response = await axios.get('/api/spatial/secciones-geojson')
             }
-            geoJsonSeccionesCache = response.data
+            // Mientras BE-3 no esté listo, VITE_LISTA_NOMINAL_MOCK=true agrega datos de ejemplo
+            geoJsonSeccionesCache = mockActivo() ? enriquecerGeoJsonConMock(response.data) : response.data
+
+            const features = geoJsonSeccionesCache.features || []
+            topeCobertura.value = calcularTopeEscala(features.map((f) => obtenerCobertura(f.properties)))
+            resumenSecciones.value = geoJsonSeccionesCache.summary || {}
+
+            // Si el backend aún no manda Lista Nominal, se abre en la vista de conteo
+            const hayListaNominal = features.some((f) => f.properties?.total_lista_nominal)
+            modoSecciones.value = hayListaNominal ? 'cobertura' : 'simpatizantes'
+            seccionesLayer.setStyle(estiloSeccion)
+
             const geoData = {
                 type: 'FeatureCollection',
                 features: geoJsonSeccionesCache.features || []

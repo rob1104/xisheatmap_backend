@@ -62,6 +62,15 @@
                     <span class="font-medium">Mapa de Calor</span>
                 </Link>
 
+                <!-- Solo se muestra cuando backend registre la ruta lista-nominal.index (BE-2) -->
+                <Link v-if="route().has('lista-nominal.index')"
+                      :href="route('lista-nominal.index')"
+                      :class="route().current('lista-nominal.*') ? 'bg-indigo-600/10 text-indigo-400 border-l-4 border-indigo-500' : 'text-slate-400 border-l-4 border-transparent hover:bg-slate-800 hover:text-white hover:border-slate-600'"
+                      class="flex items-center px-4 py-3 rounded-r-xl transition-all duration-300 ease-in-out group hover:translate-x-1">
+                    <svg class="w-5 h-5 mr-3 transition-transform duration-300 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span class="font-medium">Lista Nominal</span>
+                </Link>
+
                 <Link :href="route('logs.index')"
                       :class="route().current('logs.index') ? 'bg-indigo-600/10 text-indigo-400 border-l-4 border-indigo-500' : 'text-slate-400 border-l-4 border-transparent hover:bg-slate-800 hover:text-white hover:border-slate-600'"
                       class="flex items-center px-4 py-3 rounded-r-xl transition-all duration-300 ease-in-out group hover:translate-x-1">
@@ -117,7 +126,10 @@ import { Link } from '@inertiajs/vue3';
 <style>
 /* Pequeñas utilidades visuales */
 .animate-fade-in-up {
-    animation: fadeInUp 0.4s ease-out forwards;
+    /* "backwards" (no "forwards"): al terminar no deja ningún transform aplicado.
+       Un transform que se queda aplicado hace que los modales "fixed" (Apoyos, Casas Mesil,
+       Lista Nominal) se posicionen dentro del contenido y se corten arriba. */
+    animation: fadeInUp 0.4s ease-out backwards;
 }
 
 @keyframes fadeInUp {

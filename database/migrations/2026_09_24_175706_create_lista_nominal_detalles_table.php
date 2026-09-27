@@ -22,7 +22,7 @@ return new class extends Migration
             // Relación directa con la sección electoral cartográfica
             $table->foreignId('seccion_electoral_id')
                 ->constrained('secciones_electorales')
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             // Cifras oficiales emitidas por la autoridad electoral
             $table->unsignedMediumInteger('total_lista_nominal');          // Denominador principal para cobertura

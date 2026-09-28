@@ -70,7 +70,7 @@ class ListaNominalPermissionSeeder extends Seeder
         
         // Sincronización de rol Spatie para usuarios existentes
         User::whereNotNull('role')->cursor()->each(function (User $user) {
-            $user->syncRolesWithSpatie();
+            $user->syncRoleWithSpatie();
         });
     }
 }

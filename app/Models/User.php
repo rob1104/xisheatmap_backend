@@ -70,22 +70,22 @@ class User extends Authenticatable
     {
         static::saved(function (User $user) {
             if ($user->wasRecentlyCreated) {
-                if (! empty($user->roles)) {
+                if (! empty($user->role)) {
                     $user->syncRoleWithSpatie();
                 }  
             } else if ($user->wasChanged('role')) {
-                $user()->syncRoleWithSpatie();
+                $user->syncRoleWithSpatie();
             }
         });
     }
 
-    protected function syncRoleWithSpatie(): void
+    public function syncRoleWithSpatie(): void
     {
         if (! Schema::hasTable(config('permission.table_name.roles', 'roles'))) {
             return;
         }
 
-        if (empty($this->roles)) {
+        if (empty($this->role)) {
             if (! $this->wasRecentlyCreated && $this->roles()->exists()) {
                 $this->syncRoles([]);
             }

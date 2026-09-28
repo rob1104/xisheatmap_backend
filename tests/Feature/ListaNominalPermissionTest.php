@@ -184,7 +184,7 @@ class ListaNominalPermissionTest extends TestCase
     public function test_seeder_does_not_wipe_permissions_from_other_modules(): void
     {
         $otherPermission = Permission::firstOrCreate([
-            'name' => 'apoyo.ver',
+            'name' => 'apoyos.ver',
             'guard_name' => 'web',
         ]);
 

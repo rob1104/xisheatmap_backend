@@ -47,23 +47,30 @@ class ListaNominalPermissionSeeder extends Seeder
             UserRole::DESDOBLE->value => [],
         ];
 
-        // Crear/Obtener roles y sincronizar los permisos
-        foreach ($rolePermissions as $roleName => $permissions) {
+        $modulePermissions = ListaNominalPermission::values();
+
+        // Crear/Obtener roles y sincronizar únicamente los permisos de lista nominal
+        foreach ($rolePermissions as $roleName => $permission) {
             $role = Role::firstOrCreate([
                 'name' => $roleName,
                 'guard_name' => 'web',
             ]);
-            $role->syncPermissions($permissions);
+
+            $permissionToGive = $permission;
+            $permissionToRevoke = array_diff($modulePermissions, $permissionToGive);
+
+            if ($permissionToGive) {
+                $role->givePermissionTo($permissionToGive);
+            }
+
+            if ($permissionToRevoke) {
+                $role->revokePermissionTo($permissionToRevoke);
+            }
         }
         
-        // Asignacion de rol Spatie a los usuario existentes según el enum de su columna
-
+        // Sincronización de rol Spatie para usuarios existentes
         User::whereNotNull('role')->cursor()->each(function (User $user) {
-            $roleName  = $user->role instanceof \BackedEnum ? $user->role->value : (string) $user->role;
-
-            if ($roleName && Role::Where('name', $roleName)->where('guard_name', 'web')->exists()) {
-                $user->syncRoles([$roleName]);
-            }
+            $user->syncRolesWithSpatie();
         });
     }
 }

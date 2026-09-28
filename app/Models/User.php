@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Role;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -62,5 +64,42 @@ class User extends Authenticatable
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn(string $eventName) => "Usuario {$eventName}");
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(function (User $user) {
+            if ($user->wasRecentlyCreated) {
+                if (! empty($user->roles)) {
+                    $user->syncRoleWithSpatie();
+                }  
+            } else if ($user->wasChanged('role')) {
+                $user()->syncRoleWithSpatie();
+            }
+        });
+    }
+
+    protected function syncRoleWithSpatie(): void
+    {
+        if (! Schema::hasTable(config('permission.table_name.roles', 'roles'))) {
+            return;
+        }
+
+        if (empty($this->roles)) {
+            if (! $this->wasRecentlyCreated && $this->roles()->exists()) {
+                $this->syncRoles([]);
+            }
+            return;
+        }
+
+        $roleName = $this->role instanceof \BackedEnum ? $this->role->value : (string) $this->role;
+
+        if (!$roleName !== ''){
+            $role = Role::firstOrCreate([
+                'name' => $roleName,
+                'guard_name' => 'web',
+            ]);
+            $this->syncRoles([$role]);
+        }
     }
 }

@@ -38,9 +38,8 @@ class ListaNominalPermissionTest extends TestCase
         }
 
         $this->assertEquals(
-            count(ListaNominalPermission::cases()),
-            Permission::count()
-        );
+            count(ListaNominalPermission::values()),
+            Permission::whereIn('name', ListaNominalPermission::values())->count());
     }
 
     /**
@@ -134,8 +133,8 @@ class ListaNominalPermissionTest extends TestCase
         $this->seed(ListaNominalPermissionSeeder::class);
 
         $this->assertEquals(
-            count(ListaNominalPermission::cases()),
-            Permission::count(),
+            count(ListaNominalPermission::values()),
+            Permission::whereIn('name', ListaNominalPermission::values())->count(),
             'Los permisos no deben duplicarse al volver a ejecutar el seeder.'
         );
     }
@@ -176,5 +175,52 @@ class ListaNominalPermissionTest extends TestCase
         $this->actingAs($admin)
             ->post('/test-route-crear')
             ->assertStatus(200);
+    }
+
+    /**
+     * Verifica que el seeder no elimine permisos pertenecientes a otros módulos.
+     */
+
+    public function test_seeder_does_not_wipe_permissions_from_other_modules(): void
+    {
+        $otherPermission = Permission::firstOrCreate([
+            'name' => 'apoyo.ver',
+            'guard_name' => 'web',
+        ]);
+
+        $adminRole = \Spatie\Permission\Models\Role::firstOrCreate([
+            'name' => UserRole::ADMINISTRADOR->value,
+            'guard_name' => 'web',
+        ]);
+
+        $adminRole->givePermissionTo($otherPermission);
+
+        $this->seed(ListaNominalPermissionSeeder::class);
+
+        $adminRole->refresh();
+        $this->assertTrue(
+            $adminRole->hasPermissionTo('apoyos.ver'),
+            'el seeder no debe remover permisos de otros módulos.'
+        );
+    }
+
+    /**
+     * Verfica que nuevos usuarios o usuarios con cambio de rol sincronicen Spatie automaticamente.
+     */
+
+    public function test_user_role_change_and_creation_syncs_spaties_role_automatically(): void
+    {
+        $this->seed(ListaNominalPermissionSeeder::class);
+        
+        // Nuevo usuario
+        $user = User::factory()->create(['role' => UserRole::COORDINADOR_SECTOR]);
+        $this->assertTrue($user->hasRole(UserRole::COORDINADOR_SECTOR->value));
+        $this->assertTrue($user->can(ListaNominalPermission::VER->value));
+
+        // Cambio de rol
+        $user->update(['role' => UserRole::ADMINISTRADOR]);
+        $this->assertTrue($user->hasRole(UserRole::ADMINISTRADOR->value));
+        $this->assertFalse($user->hasRole(UserRole::COORDINADOR_SECTOR->value));
+        $this->assertTrue($user->can(ListaNominalPermission::CREAR->value));
     }
 }

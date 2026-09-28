@@ -25,15 +25,35 @@ const hexARgb = (hex) => {
 const rgbAHex = (rgb) =>
     '#' + rgb.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('')
 
+// Relleno para secciones cuya Lista Nominal es exactamente 0 electores.
+export const COLOR_LN_CERO = '#cbd5e1'
+
 /**
- * Obtiene el porcentaje de cobertura de una sección.
- * Devuelve null cuando la sección no tiene datos.
+ * Estado de la Lista Nominal de una sección
+ */
+export const estadoListaNominal = (props) => {
+    const ln = props?.total_lista_nominal
+    if (ln === null || ln === undefined || ln === '') return 'sin_dato'
+    const numero = Number(ln)
+    if (!Number.isFinite(numero)) return 'sin_dato'
+    return numero === 0 ? 'cero' : 'con_datos'
+}
+
+/**
+ * Porcentaje de cobertura de una sección, o null si no se puede calcular
+ * (sin Lista Nominal o Lista Nominal en 0).
  */
 export const obtenerCobertura = (props) => {
+    if (estadoListaNominal(props) !== 'con_datos') return null
+
     const pct = props?.porcentaje_cobertura
-    if (pct === null || pct === undefined || pct === '') return null
-    const numero = Number(pct)
-    return Number.isFinite(numero) ? numero : null
+    if (pct !== null && pct !== undefined && pct !== '') {
+        const numero = Number(pct)
+        if (Number.isFinite(numero)) return numero
+    }
+    // Respaldo si el backend no manda el porcentaje: simpatizantes / Lista Nominal
+    const simpatizantes = Number(props?.total_simpatizantes ?? 0)
+    return Math.round((simpatizantes / Number(props.total_lista_nominal)) * 10000) / 100
 }
 
 /**

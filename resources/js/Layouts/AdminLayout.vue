@@ -62,8 +62,8 @@
                     <span class="font-medium">Mapa de Calor</span>
                 </Link>
 
-                <!-- Solo se muestra cuando backend registre la ruta lista-nominal.index (BE-2) -->
-                <Link v-if="route().has('lista-nominal.index')"
+                <!-- Solo con la ruta lista-nominal.index (BE-2) y el permiso lista-nominal.ver (AUTH-1) -->
+                <Link v-if="route().has('lista-nominal.index') && puedeVerListaNominal"
                       :href="route('lista-nominal.index')"
                       :class="route().current('lista-nominal.*') ? 'bg-indigo-600/10 text-indigo-400 border-l-4 border-indigo-500' : 'text-slate-400 border-l-4 border-transparent hover:bg-slate-800 hover:text-white hover:border-slate-600'"
                       class="flex items-center px-4 py-3 rounded-r-xl transition-all duration-300 ease-in-out group hover:translate-x-1">
@@ -120,8 +120,14 @@
 </template>
 
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import { permisosListaNominal } from '@/Utils/permisosListaNominal.js';
+
+const page = usePage();
+const puedeVerListaNominal = computed(() => permisosListaNominal(page.props.auth).ver);
 </script>
+
 
 <style>
 /* Pequeñas utilidades visuales */

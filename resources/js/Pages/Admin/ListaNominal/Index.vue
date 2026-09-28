@@ -6,7 +6,12 @@
             Lista Nominal · Cortes
         </template>
 
-        <div class="max-w-7xl mx-auto animate-fade-in-up space-y-6">
+        <!-- Sin permiso lista-nominal.ver: no se muestra nada del módulo -->
+        <div v-if="!permisos.ver" class="max-w-xl mx-auto mt-10 rounded-2xl border border-slate-800 bg-slate-900 p-6 text-center text-slate-400">
+            No tienes permiso para ver la Lista Nominal.
+        </div>
+
+        <div v-else class="max-w-7xl mx-auto animate-fade-in-up space-y-6">
 
             <div v-if="usandoDatosDeEjemplo" class="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
                 <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -118,7 +123,7 @@
                         </tr>
                         <tr v-if="cortesOrdenados.length === 0">
                             <td colspan="6" class="px-6 py-12 text-center text-slate-500">
-                                Aún no hay cortes de Lista Nominal. Crea el primero con «Nuevo corte».
+                                Aún no hay cortes de Lista Nominal.<template v-if="permisos.crear"> Crea el primero con «Nuevo corte».</template>
                             </td>
                         </tr>
                     </tbody>
@@ -137,23 +142,27 @@
                     <h3 id="titulo-modal-corte" class="text-xl font-bold mb-1 text-slate-100">Nuevo corte de Lista Nominal</h3>
                     <p class="text-sm text-slate-500 mb-6">Sube el archivo oficial por sección. Las secciones sin polígono en el mapa se reportan al terminar.</p>
 
+                    <div v-if="proceso.corteId && !proceso.importado" class="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+                        El corte ya quedó creado. Solo falta cargar el archivo; los datos del corte no se pueden cambiar aquí.
+                    </div>
+
                     <form @submit.prevent="guardarCorte" class="space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="fecha_corte" class="block text-sm font-bold text-slate-400 mb-1">Fecha real del corte *</label>
-                                <input id="fecha_corte" v-model="form.fecha_corte" type="date" :max="hoy" required class="w-full border-slate-700 bg-slate-950 text-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner [color-scheme:dark]">
+                                <input id="fecha_corte" v-model="form.fecha_corte" :disabled="!!proceso.corteId" type="date" :max="hoy" required class="w-full border-slate-700 bg-slate-950 text-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner [color-scheme:dark]">
                                 <p v-if="errores.fecha_corte" class="mt-1 text-xs text-red-400">{{ errores.fecha_corte }}</p>
                             </div>
                             <div>
                                 <label for="fuente" class="block text-sm font-bold text-slate-400 mb-1">Fuente *</label>
-                                <input id="fuente" v-model="form.fuente" type="text" maxlength="150" required class="w-full border-slate-700 bg-slate-950 text-slate-200 placeholder-slate-500 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner">
+                                <input id="fuente" v-model="form.fuente" :disabled="!!proceso.corteId" type="text" maxlength="150" required class="w-full border-slate-700 bg-slate-950 text-slate-200 placeholder-slate-500 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner">
                                 <p v-if="errores.fuente" class="mt-1 text-xs text-red-400">{{ errores.fuente }}</p>
                             </div>
                         </div>
 
                         <div>
                             <label for="descripcion" class="block text-sm font-bold text-slate-400 mb-1">Descripción <span class="font-normal text-slate-600">(opcional)</span></label>
-                            <input id="descripcion" v-model="form.descripcion" type="text" maxlength="255" placeholder="Ej. Corte definitivo Proceso Electoral 2027" class="w-full border-slate-700 bg-slate-950 text-slate-200 placeholder-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner">
+                            <input id="descripcion" v-model="form.descripcion" :disabled="!!proceso.corteId" type="text" maxlength="255" placeholder="Ej. Corte definitivo Proceso Electoral 2027" class="w-full border-slate-700 bg-slate-950 text-slate-200 placeholder-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner">
                             <p v-if="errores.descripcion" class="mt-1 text-xs text-red-400">{{ errores.descripcion }}</p>
                         </div>
 
@@ -196,7 +205,7 @@
                         <div class="flex justify-end gap-3 pt-2">
                             <button type="button" @click="cerrarModal" :disabled="enviando" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 disabled:opacity-50">Cancelar</button>
                             <button type="submit" :disabled="enviando" class="px-5 py-2 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
-                                {{ enviando ? 'Procesando…' : 'Crear corte y cargar' }}
+                                {{ textoBotonGuardar }}
                             </button>
                         </div>
                     </form>
@@ -236,6 +245,11 @@
                         </div>
                     </div>
 
+                    <div v-if="proceso.activacionFallida" class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-300">
+                        <strong>Los datos se guardaron, pero el corte no se activó.</strong>
+                        {{ proceso.mensajeActivacion }} Puedes activarlo desde la tabla con el botón «Activar».
+                    </div>
+
                     <div class="flex justify-end pt-6">
                         <button type="button" @click="cerrarModal" class="px-5 py-2 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500">Listo</button>
                     </div>
@@ -253,10 +267,10 @@ import axios from 'axios'
 import AdminLayout from '@/Layouts/AdminLayout.vue'
 import { formatoNumero } from '@/Utils/coberturaEscala.js'
 import { cortesMock, mockActivo, resumenImportacionMock } from '@/Utils/listaNominalMock.js'
+import { permisosListaNominal } from '@/Utils/permisosListaNominal.js'
 
 const props = defineProps({
     cortes: { type: Array, default: null },
-    permisos: { type: Object, default: null },
 })
 
 const page = usePage()
@@ -272,23 +286,8 @@ const cortesOrdenados = computed(() =>
 const corteActivo = computed(() => listaCortes.value.find((c) => c.is_active) || null)
 
 
-const ACCIONES = ['ver', 'crear', 'activar', 'editar', 'eliminar']
-
-const permisos = computed(() => {
-    const auth = page.props.auth || {}
-
-    const objeto = props.permisos || auth.permisos
-    if (objeto && !Array.isArray(objeto)) return objeto
-
-    const lista = auth.permissions || auth.user?.permissions || (Array.isArray(objeto) ? objeto : null)
-    if (Array.isArray(lista)) {
-        const nombres = lista.map((p) => (typeof p === 'string' ? p : p?.name))
-        return Object.fromEntries(ACCIONES.map((a) => [a, nombres.includes(`lista-nominal.${a}`)]))
-    }
-
-    const esAdmin = auth.user?.role === 'Administrador'
-    return { ver: true, crear: esAdmin, activar: esAdmin, editar: esAdmin, eliminar: esAdmin }
-})
+// Permisos Spatie desde $page.props.auth (AUTH-1). Sin permisos = sin acceso (default deny).
+const permisos = computed(() => permisosListaNominal(page.props.auth))
 
 // ---------- Rutas ----------
 const url = (nombre, parametros, respaldo) =>
@@ -358,6 +357,11 @@ const inputArchivo = ref(null)
 const resumen = ref(null)
 const errores = reactive({})
 
+// Estado de cada etapa del alta: crear corte -> importar archivo -> activar.
+// Si una etapa falla, al reintentar se continúa desde ahí (no se crea otro corte).
+const procesoVacio = () => ({ corteId: null, importado: false, activacionFallida: false, mensajeActivacion: '' })
+const proceso = reactive(procesoVacio())
+
 const formularioVacio = () => ({
     fecha_corte: '',
     fuente: 'INE - Dirección Ejecutiva del Registro Federal de Electores',
@@ -371,6 +375,7 @@ const limpiarErrores = () => Object.keys(errores).forEach((k) => delete errores[
 
 const abrirModal = () => {
     Object.assign(form, formularioVacio())
+    Object.assign(proceso, procesoVacio())
     limpiarErrores()
     resumen.value = null
     progreso.value = 0
@@ -380,14 +385,19 @@ const abrirModal = () => {
 const cerrarModal = () => {
     if (enviando.value) return
     modalAbierto.value = false
-    if (resumen.value && !usandoDatosDeEjemplo) recargar()
+    // Si se llegó a crear el corte (aunque la carga haya fallado), refrescar la tabla
+    if (proceso.corteId && !usandoDatosDeEjemplo) recargar()
 }
 
 const EXTENSIONES = ['csv', 'txt', 'xlsx']
 const TAMANO_MAXIMO = 15 * 1024 * 1024
 
 const asignarArchivo = (archivo) => {
+    // Se descarta el archivo anterior: uno inválido nunca deja seleccionado el previo
+    form.archivo = null
     delete errores.archivo
+    // Permite volver a elegir el mismo archivo después de corregirlo
+    if (inputArchivo.value) inputArchivo.value.value = ''
     if (!archivo) return
     const extension = archivo.name.split('.').pop().toLowerCase()
     if (!EXTENSIONES.includes(extension)) {
@@ -411,14 +421,15 @@ const tamanoLegible = (bytes) =>
     bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
 // Convierte errores de Laravel al formulario
-const mostrarErrores = (error) => {
+const mostrarErrores = (error, prefijo = '') => {
     const lista = error?.response?.data?.errors
     if (error?.response?.status === 422 && lista) {
         Object.entries(lista).forEach(([campo, mensajes]) => {
             errores[campo] = Array.isArray(mensajes) ? mensajes[0] : mensajes
         })
+        if (prefijo) errores.general = prefijo + 'Revisa los datos marcados.'
     } else {
-        errores.general = mensajeDeError(error, 'Ocurrió un error al procesar el corte. Intenta de nuevo.')
+        errores.general = prefijo + mensajeDeError(error, 'Ocurrió un error. Intenta de nuevo.')
     }
 }
 
@@ -449,61 +460,93 @@ const guardarCorte = async () => {
 
     try {
         if (usandoDatosDeEjemplo) {
-            etapa.value = 'Simulando carga (datos de ejemplo)…'
-            for (const p of [25, 60, 100]) {
-                progreso.value = p
-                await new Promise((r) => setTimeout(r, 250))
-            }
-            const nuevoId = Math.max(0, ...listaLocal.value.map((c) => c.id)) + 1
-            if (form.activar) listaLocal.value = listaLocal.value.map((c) => ({ ...c, is_active: false }))
-            listaLocal.value.push({
-                id: nuevoId,
-                fecha_corte: form.fecha_corte,
-                fuente: form.fuente,
-                descripcion: form.descripcion || null,
-                is_active: !!form.activar,
-                detalles_count: 168,
-                total_lista_nominal: 247300,
-                created_at: new Date().toISOString(),
-            })
-            resumen.value = resumenImportacionMock(form.archivo.name)
+            await simularCarga()
             return
         }
 
-        // Cabecera del corte
-        etapa.value = 'Creando corte…'
-        const { data: creado } = await axios.post(
-            rutas.store(),
-            { fecha_corte: form.fecha_corte, fuente: form.fuente, descripcion: form.descripcion || null },
-            { headers: { Accept: 'application/json' } }
-        )
-        const corteId = creado?.corte?.id ?? creado?.id
+        // Etapa 1: crear la cabecera del corte (solo si aún no existe)
+        if (!proceso.corteId) {
+            etapa.value = 'Creando corte…'
+            try {
+                const { data: creado } = await axios.post(
+                    rutas.store(),
+                    { fecha_corte: form.fecha_corte, fuente: form.fuente, descripcion: form.descripcion || null },
+                    { headers: { Accept: 'application/json' } }
+                )
+                proceso.corteId = creado?.corte?.id ?? creado?.id
+            } catch (error) {
+                mostrarErrores(error, 'No se pudo crear el corte. ')
+                return
+            }
+        }
 
-        //  Subir el archivo 
-        etapa.value = 'Subiendo y procesando archivo…'
-        const datos = new FormData()
-        datos.append('archivo', form.archivo)
-        const { data: importado } = await axios.post(rutas.importar(corteId), datos, {
-            headers: { Accept: 'application/json', 'Content-Type': 'multipart/form-data' },
-            onUploadProgress: (e) => {
-                if (e.total) progreso.value = Math.round((e.loaded / e.total) * 100)
-            },
-        })
+        // Etapa 2: importar el archivo al corte ya creado
+        if (!proceso.importado) {
+            etapa.value = 'Subiendo y procesando archivo…'
+            try {
+                const datos = new FormData()
+                datos.append('archivo', form.archivo)
+                const { data: importado } = await axios.post(rutas.importar(proceso.corteId), datos, {
+                    headers: { Accept: 'application/json', 'Content-Type': 'multipart/form-data' },
+                    onUploadProgress: (e) => {
+                        if (e.total) progreso.value = Math.round((e.loaded / e.total) * 100)
+                    },
+                })
+                proceso.importado = true
+                resumen.value = normalizarResumen(importado, form.archivo.name)
+            } catch (error) {
+                mostrarErrores(
+                    error,
+                    'El corte se creó, pero la carga del archivo falló. Corrige el archivo y usa «Reintentar carga» (no se creará otro corte). '
+                )
+                return
+            }
+        }
 
-        // Activarlo si se pidió
+        // Etapa 3: activar (opcional). Si falla, los datos ya están guardados.
         if (form.activar && permisos.value.activar) {
             etapa.value = 'Activando corte…'
-            await axios.patch(rutas.activar(corteId), {}, { headers: { Accept: 'application/json' } })
+            try {
+                await axios.patch(rutas.activar(proceso.corteId), {}, { headers: { Accept: 'application/json' } })
+            } catch (error) {
+                proceso.activacionFallida = true
+                proceso.mensajeActivacion = mensajeDeError(error, 'No se pudo activar el corte.')
+            }
         }
 
         progreso.value = 100
-        resumen.value = normalizarResumen(importado, form.archivo.name)
-    } catch (error) {
-        mostrarErrores(error)
     } finally {
         enviando.value = false
     }
 }
+
+const simularCarga = async () => {
+    etapa.value = 'Simulando carga (datos de ejemplo)…'
+    for (const p of [25, 60, 100]) {
+        progreso.value = p
+        await new Promise((r) => setTimeout(r, 250))
+    }
+    const nuevoId = Math.max(0, ...listaLocal.value.map((c) => c.id)) + 1
+    if (form.activar) listaLocal.value = listaLocal.value.map((c) => ({ ...c, is_active: false }))
+    listaLocal.value.push({
+        id: nuevoId,
+        fecha_corte: form.fecha_corte,
+        fuente: form.fuente,
+        descripcion: form.descripcion || null,
+        is_active: !!form.activar,
+        detalles_count: 168,
+        total_lista_nominal: 247300,
+        created_at: new Date().toISOString(),
+    })
+    proceso.corteId = nuevoId
+    proceso.importado = true
+    resumen.value = resumenImportacionMock(form.archivo.name)
+}
+
+const textoBotonGuardar = computed(() => {
+    if (enviando.value) return 'Procesando…'
+    return proceso.corteId && !proceso.importado ? 'Reintentar carga' : 'Crear corte y cargar'
+})
 
 // ---------- Formato ----------
 const formatoFecha = (fecha) => {

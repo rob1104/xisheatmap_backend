@@ -4,7 +4,6 @@
             <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 {{ modo === 'cobertura' ? 'Cobertura Lista Nominal' : 'Simpatizantes por sección' }}
             </span>
-            
         </div>
 
         <!-- Escala de cobertura -->
@@ -19,6 +18,10 @@
             <div class="flex items-center gap-2 mt-2 text-[11px] text-slate-600">
                 <span class="w-4 h-3 rounded-sm border-2 border-slate-400 bg-transparent"></span>
                 Sin Lista Nominal en el corte activo
+            </div>
+            <div class="flex items-center gap-2 mt-1 text-[11px] text-slate-600">
+                <span class="w-4 h-3 rounded-sm border border-slate-400" :style="{ background: COLOR_LN_CERO }"></span>
+                Lista Nominal en 0 electores
             </div>
             <p class="mt-2 text-[10px] leading-snug text-slate-500">
                 Simpatizantes ubicados por GPS ÷ Lista Nominal. Escala provisional hasta definir meta.
@@ -45,13 +48,12 @@
 
 <script setup>
 import { computed } from 'vue'
-import { degradadoCss } from '@/Utils/coberturaEscala.js'
+import { COLOR_LN_CERO, degradadoCss } from '@/Utils/coberturaEscala.js'
 
 const props = defineProps({
     modo: { type: String, default: 'cobertura' }, // 'cobertura' | 'simpatizantes'
     tope: { type: Number, default: 10 },
     corteActivo: { type: Object, default: null },
-    datosDeEjemplo: { type: Boolean, default: false },
 })
 
 const degradado = degradadoCss()
@@ -70,12 +72,10 @@ const fechaCorte = computed(() => {
 
 // Mismos rangos que obtener color por metrica
 const rangosSimpatizantes = [
-    { etiqueta: '100 o más', color: '#1e3a8a' },             
+    { etiqueta: '100 o más', color: '#1e3a8a' },
     { etiqueta: '50 – 99', color: '#2563eb' },
     { etiqueta: '20 – 49', color: '#60a5fa' },
     { etiqueta: '1 – 19', color: '#93c5fd' },
     { etiqueta: 'Sin registros', color: '#e2e8f0' },
 ]
 </script>
-//const rangoSimpatizantes = [ 
-    

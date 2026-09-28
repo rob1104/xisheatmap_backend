@@ -8,7 +8,7 @@
  * 
  */
 
-export const mockActivo = () => import.meta.env.VITE_LISTA_NOMINAL_MOCK === 'true'
+export const mockActivo = () => import.meta.env?.VITE_LISTA_NOMINAL_MOCK === 'true'
 
 // Número pseudoaleatorio estable por sección (siempre da lo mismo para la misma sección).
 const aleatorioEstable = (semilla, salt) => {
@@ -40,7 +40,8 @@ export const enriquecerGeoJsonConMock = (geojson) => {
 
         // ~4 % de las secciones sin Lista Nominal cargada (caso "sin dato")
         const sinDato = aleatorioEstable(clave, 7) < 0.04
-        const listaNominal = sinDato ? null : 600 + Math.round(aleatorioEstable(clave, 1) * 1900)
+        const ceroElectores = !sinDato && aleatorioEstable(clave, 8) < 0.02
+        const listaNominal = sinDato ? null : ceroElectores ? 0 : 600 + Math.round(aleatorioEstable(clave, 1) * 1900)
 
         // ~8 % sin simpatizantes; el resto entre 0 % y 26 % de cobertura
         const cobertura = aleatorioEstable(clave, 3) < 0.08 ? 0 : aleatorioEstable(clave, 2) * 0.26

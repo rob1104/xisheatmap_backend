@@ -2,7 +2,7 @@
  * Contenido HTML del InfoWindow de una sección electoral.
  * Google Maps InfoWindow recibe HTML plano, por eso se armo como texto.
  */
-import { formatoNumero, formatoPorcentaje, obtenerCobertura } from './coberturaEscala.js'
+import { estadoListaNominal, formatoNumero, formatoPorcentaje, obtenerCobertura } from './coberturaEscala.js'
 
 const escapar = (valor) =>
     String(valor ?? '')
@@ -16,20 +16,21 @@ const fila = (etiqueta, valor) => `
     <div class="flex justify-between gap-4"><span>${etiqueta}</span><strong class="text-gray-800 tabular-nums">${valor}</strong></div>`
 
 /**
- * @param {Object} p  properties del Feature (contrato BE-3)
+ * @param {Object} p  properties del Feature (contrato)
  * @param {Object|null} corteActivo  summary.corte_activo
  */
 export const construirInfoWindowSeccion = (p, corteActivo = null) => {
     const seccion = escapar(p.seccion)
     const tipo = p.tipo === 1 ? 'Urbana' : 'Rural'
-    const listaNominal = p.total_lista_nominal ?? null
+    const estadoLN = estadoListaNominal(p)
+    const listaNominal = estadoLN === 'sin_dato' ? null : Number(p.total_lista_nominal)
     const simpatizantes = Number(p.total_simpatizantes || 0)
     const apoyos = Number(p.total_apoyos || 0)
     const cobertura = obtenerCobertura(p)
     const relativo = p.porcentaje_relativo_municipio ?? p.porcentaje ?? null
 
     let bloqueCobertura
-    if (listaNominal && cobertura !== null) {
+    if (estadoLN === 'con_datos' && cobertura !== null) {
         const ancho = Math.min(Math.max(cobertura, 0), 100)
         bloqueCobertura = `
             <div class="mt-3 pt-3 border-t border-gray-200">
@@ -47,11 +48,14 @@ export const construirInfoWindowSeccion = (p, corteActivo = null) => {
                 </div>
             </div>`
     } else {
+        const aviso = estadoLN === 'cero'
+            ? 'La Lista Nominal de esta sección es 0 electores: la cobertura no aplica'
+            : 'Sin Lista Nominal en el corte activo'
         bloqueCobertura = `
             <div class="mt-3 pt-3 border-t border-gray-200">
                 <div class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Cobertura electoral</div>
                 <div class="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
-                    Sin Lista Nominal en el corte activo
+                    ${aviso}
                 </div>
             </div>`
     }

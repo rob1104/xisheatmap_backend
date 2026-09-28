@@ -126,7 +126,6 @@
                         :modo="modoSecciones"
                         :tope="topeCobertura"
                         :corte-activo="resumenSecciones.corte_activo || null"
-                        :datos-de-ejemplo="!!resumenSecciones._datos_de_ejemplo"
                     />
                 </div>
 
@@ -252,7 +251,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue'
 import axios from 'axios'
 import LeyendaCobertura from '@/Components/Mapa/LeyendaCobertura.vue'
 import WidgetSinClasificacion from '@/Components/Mapa/WidgetSinClasificacion.vue'
-import { COLOR_SIN_DATO, calcularTopeEscala, colorPorCobertura, obtenerCobertura } from '@/Utils/coberturaEscala.js'
+import { COLOR_LN_CERO, COLOR_SIN_DATO, calcularTopeEscala, colorPorCobertura, estadoListaNominal, obtenerCobertura } from '@/Utils/coberturaEscala.js'
 import { construirInfoWindowSeccion } from '@/Utils/infoWindowSeccion.js'
 import { enriquecerGeoJsonConMock, mockActivo } from '@/Utils/listaNominalMock.js'
 
@@ -951,10 +950,23 @@ const estiloSeccion = (feature) => {
     const base = { strokeWeight: 1.2, strokeOpacity: 0.8, cursor: 'pointer' }
 
     if (modoSecciones.value === 'cobertura') {
-        const cobertura = obtenerCobertura({ porcentaje_cobertura: feature.getProperty('porcentaje_cobertura') })
-        if (cobertura === null || !feature.getProperty('total_lista_nominal')) {
+        const propiedades = {
+            total_lista_nominal: feature.getProperty('total_lista_nominal'),
+            porcentaje_cobertura: feature.getProperty('porcentaje_cobertura'),
+            total_simpatizantes: feature.getProperty('total_simpatizantes'),
+        }
+        const estadoLN = estadoListaNominal(propiedades)
+
+        // null/undefined: sin dato en el corte activo -> solo borde gris
+        if (estadoLN === 'sin_dato') {
             return { ...base, fillColor: '#ffffff', fillOpacity: 0, strokeColor: COLOR_SIN_DATO, strokeWeight: 1.5 }
         }
+        // 0 electores: hay dato, pero la cobertura no aplica -> relleno gris
+        if (estadoLN === 'cero') {
+            return { ...base, fillColor: COLOR_LN_CERO, fillOpacity: 0.45, strokeColor: COLOR_SIN_DATO }
+        }
+
+        const cobertura = obtenerCobertura(propiedades) ?? 0
         return {
             ...base,
             fillColor: colorPorCobertura(cobertura, topeCobertura.value),
@@ -1036,7 +1048,7 @@ const toggleSecciones = async () => {
             resumenSecciones.value = geoJsonSeccionesCache.summary || {}
 
             // Si el backend aún no manda Lista Nominal, se abre en la vista de conteo
-            const hayListaNominal = features.some((f) => f.properties?.total_lista_nominal)
+            const hayListaNominal = features.some((f) => estadoListaNominal(f.properties) !== 'sin_dato')
             modoSecciones.value = hayListaNominal ? 'cobertura' : 'simpatizantes'
             seccionesLayer.setStyle(estiloSeccion)
 

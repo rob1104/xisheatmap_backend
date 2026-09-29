@@ -198,6 +198,91 @@ class SpatialListaNominalTest extends TestCase
         $this->assertSame(41, $geoJson['summary']['municipio']);
     }
 
+    public function test_cobertura_global_excluye_secciones_con_lista_nominal_en_cero(): void
+    {
+        $normal = $this->createTestSeccion('9901');
+        $cero = $this->createTestSeccion('9902');
+        $activo = $this->createCorte(true);
+        ListaNominalDetalle::create(['lista_nominal_corte_id' => $activo->id, 'seccion_electoral_id' => $normal->id, 'total_lista_nominal' => 100]);
+        ListaNominalDetalle::create(['lista_nominal_corte_id' => $activo->id, 'seccion_electoral_id' => $cero->id, 'total_lista_nominal' => 0]);
+
+        // 2 simpatizantes en la sección normal y 5 en la sección con LN = 0
+        $this->createIne('A1', '9901');
+        $this->createIne('A2', '9901');
+        foreach (['B1', 'B2', 'B3', 'B4', 'B5'] as $clave) {
+            $this->createIne($clave, '9902');
+        }
+
+        $geoJson = app(SpatialServiceInterface::class)->getSeccionesGeoJsonWithMetrics(41);
+        $summary = $geoJson['summary'];
+
+        $this->assertNull($this->feature($geoJson, '9902')['porcentaje_cobertura']);
+        $this->assertSame(100, $summary['total_lista_nominal']);
+        $this->assertSame(7, $summary['simpatizantes']['clasificados_en_secciones']);
+        // Solo cuentan los 2 de la sección con LN > 0: 2 / 100 (antes daba 7 / 100)
+        $this->assertEquals(2.0, $summary['cobertura_global_pct']);
+    }
+
+    public function test_total_padron_es_null_si_no_hay_informacion_de_padron(): void
+    {
+        $s1 = $this->createTestSeccion('9901');
+        $s2 = $this->createTestSeccion('9902');
+        $activo = $this->createCorte(true);
+        ListaNominalDetalle::create(['lista_nominal_corte_id' => $activo->id, 'seccion_electoral_id' => $s1->id, 'total_lista_nominal' => 100]);
+        ListaNominalDetalle::create(['lista_nominal_corte_id' => $activo->id, 'seccion_electoral_id' => $s2->id, 'total_lista_nominal' => 50]);
+
+        $summary = app(SpatialServiceInterface::class)->getSeccionesGeoJsonWithMetrics(41)['summary'];
+
+        $this->assertSame(150, $summary['total_lista_nominal']);
+        $this->assertSame(0, $summary['secciones_con_padron_electoral']);
+        $this->assertNull($summary['total_padron_electoral'], 'Sin padrón no debe reportarse 0');
+    }
+
+    public function test_total_padron_es_null_si_el_padron_esta_incompleto(): void
+    {
+        $s1 = $this->createTestSeccion('9901');
+        $s2 = $this->createTestSeccion('9902');
+        $activo = $this->createCorte(true);
+        ListaNominalDetalle::create(['lista_nominal_corte_id' => $activo->id, 'seccion_electoral_id' => $s1->id, 'total_lista_nominal' => 100, 'padron_electoral' => 110]);
+        ListaNominalDetalle::create(['lista_nominal_corte_id' => $activo->id, 'seccion_electoral_id' => $s2->id, 'total_lista_nominal' => 50]);
+
+        $geoJson = app(SpatialServiceInterface::class)->getSeccionesGeoJsonWithMetrics(41);
+        $summary = $geoJson['summary'];
+
+        $this->assertSame(110, $this->feature($geoJson, '9901')['padron_electoral']);
+        $this->assertNull($this->feature($geoJson, '9902')['padron_electoral']);
+        $this->assertSame(2, $summary['secciones_con_lista_nominal']);
+        $this->assertSame(1, $summary['secciones_con_padron_electoral']);
+        $this->assertNull($summary['total_padron_electoral'], 'No se reporta una suma parcial como total');
+    }
+
+    public function test_total_padron_en_cero_se_conserva_como_cero(): void
+    {
+        $s1 = $this->createTestSeccion('9901');
+        $activo = $this->createCorte(true);
+        ListaNominalDetalle::create(['lista_nominal_corte_id' => $activo->id, 'seccion_electoral_id' => $s1->id, 'total_lista_nominal' => 0, 'padron_electoral' => 0]);
+
+        $summary = app(SpatialServiceInterface::class)->getSeccionesGeoJsonWithMetrics(41)['summary'];
+
+        $this->assertSame(0, $summary['total_padron_electoral']);
+        $this->assertSame(0, $summary['total_lista_nominal']);
+        $this->assertNull($summary['cobertura_global_pct']);
+    }
+
+    public function test_corte_activo_sin_detalles_en_el_municipio_reporta_null(): void
+    {
+        $this->createTestSeccion('9901');
+        $this->createCorte(true);
+
+        $summary = app(SpatialServiceInterface::class)->getSeccionesGeoJsonWithMetrics(41)['summary'];
+
+        $this->assertNotNull($summary['corte_activo']);
+        $this->assertSame(0, $summary['secciones_con_lista_nominal']);
+        $this->assertNull($summary['total_lista_nominal']);
+        $this->assertNull($summary['total_padron_electoral']);
+        $this->assertNull($summary['cobertura_global_pct']);
+    }
+
     public function test_endpoint_web_devuelve_el_nuevo_contrato(): void
     {
         $s1 = $this->createTestSeccion('9901');
@@ -212,7 +297,8 @@ class SpatialListaNominalTest extends TestCase
             ->assertJsonPath('summary.corte_activo.id', $activo->id)
             ->assertJsonStructure([
                 'summary' => [
-                    'municipio', 'corte_activo', 'total_secciones', 'total_lista_nominal', 'total_padron_electoral',
+                    'municipio', 'corte_activo', 'total_secciones', 'secciones_con_lista_nominal', 'total_lista_nominal',
+                    'secciones_con_padron_electoral', 'total_padron_electoral',
                     'simpatizantes' => ['clasificados_en_secciones', 'sin_clasificacion_territorial', 'total_general'],
                     'apoyos' => ['clasificados_en_secciones', 'total_general'],
                     'cobertura_global_pct',

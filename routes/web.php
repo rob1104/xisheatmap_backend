@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\IneRecordController;
 use App\Http\Controllers\Admin\TarjetaController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\LogController;
+use App\Http\Controllers\Admin\ListaNominalCorteController;
 use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\CheckAdminAccess;
@@ -82,6 +83,18 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     // El mapa web consulta (GET) - Esta es la que pegamos en tu Vue hace rato
     Route::get('/rastreo-brigadistas', [TrackingController::class, 'obtenerActivos'])->name('rastreo-brigadistas');
     Route::get('/spatial/secciones-geojson', [\App\Http\Controllers\Api\SpatialController::class, 'seccionesGeoJson'])->name('spatial.secciones-geojson');
+
+    // ---------------------------------------------------
+    // MÓDULO DE LISTA NOMINAL (CORTES Y DETALLES)
+    // ---------------------------------------------------
+    Route::prefix('admin/lista-nominal')->name('admin.lista-nominal.')->group(function () {
+        Route::get('/cortes', [ListaNominalCorteController::class, 'index'])->name('cortes.index');
+        Route::post('/cortes', [ListaNominalCorteController::class, 'store'])->name('cortes.store');
+        Route::post('/cortes/{corte}/import', [ListaNominalCorteController::class, 'importDetalles'])->name('cortes.import');
+        Route::patch('/cortes/{corte}/activar', [ListaNominalCorteController::class, 'activar'])->name('cortes.activar');
+        Route::put('/cortes/{corte}', [ListaNominalCorteController::class, 'update'])->name('cortes.update');
+        Route::delete('/cortes/{corte}', [ListaNominalCorteController::class, 'destroy'])->name('cortes.destroy');
+    });
 
 });
 

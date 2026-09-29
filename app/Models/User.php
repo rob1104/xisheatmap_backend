@@ -72,7 +72,7 @@ class User extends Authenticatable
             if ($user->wasRecentlyCreated) {
                 if (! empty($user->role)) {
                     $user->syncRoleWithSpatie();
-                }  
+                }
             } else if ($user->wasChanged('role')) {
                 $user->syncRoleWithSpatie();
             }
@@ -81,7 +81,7 @@ class User extends Authenticatable
 
     public function syncRoleWithSpatie(): void
     {
-        if (! Schema::hasTable(config('permission.table_name.roles', 'roles'))) {
+        if (! Schema::hasTable(config('permission.table_names.roles', 'roles'))) {
             return;
         }
 
@@ -94,7 +94,7 @@ class User extends Authenticatable
 
         $roleName = $this->role instanceof \BackedEnum ? $this->role->value : (string) $this->role;
 
-        if (!$roleName !== ''){
+        if ($roleName !== '') {
             $role = Role::firstOrCreate([
                 'name' => $roleName,
                 'guard_name' => 'web',

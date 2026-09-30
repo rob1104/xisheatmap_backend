@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ListaNominalPermission;
 use App\Http\Controllers\Admin\ApoyoController;
 use App\Http\Controllers\Admin\HeatMapController;
 use App\Http\Controllers\Admin\IneRecordController;
@@ -88,12 +89,29 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     // MÓDULO DE LISTA NOMINAL (CORTES Y DETALLES)
     // ---------------------------------------------------
     Route::prefix('admin/lista-nominal')->name('admin.lista-nominal.')->group(function () {
-        Route::get('/cortes', [ListaNominalCorteController::class, 'index'])->name('cortes.index');
-        Route::post('/cortes', [ListaNominalCorteController::class, 'store'])->name('cortes.store');
-        Route::post('/cortes/{corte}/import', [ListaNominalCorteController::class, 'importDetalles'])->name('cortes.import');
-        Route::patch('/cortes/{corte}/activar', [ListaNominalCorteController::class, 'activar'])->name('cortes.activar');
-        Route::put('/cortes/{corte}', [ListaNominalCorteController::class, 'update'])->name('cortes.update');
-        Route::delete('/cortes/{corte}', [ListaNominalCorteController::class, 'destroy'])->name('cortes.destroy');
+        Route::get('/cortes', [ListaNominalCorteController::class, 'index'])
+            ->name('cortes.index')
+            ->middleware('permission:' . ListaNominalPermission::VER->value);
+
+        Route::post('/cortes', [ListaNominalCorteController::class, 'store'])
+            ->name('cortes.store')
+            ->middleware('permission:' . ListaNominalPermission::CREAR->value);
+
+        Route::post('/cortes/{corte}/import', [ListaNominalCorteController::class, 'importDetalles'])
+            ->name('cortes.import')
+            ->middleware('permission:' . ListaNominalPermission::CREAR->value);
+
+        Route::patch('/cortes/{corte}/activar', [ListaNominalCorteController::class, 'activar'])
+            ->name('cortes.activar')
+            ->middleware('permission:' . ListaNominalPermission::ACTIVAR->value);
+
+        Route::put('/cortes/{corte}', [ListaNominalCorteController::class, 'update'])
+            ->name('cortes.update')
+            ->middleware('permission:' . ListaNominalPermission::EDITAR->value);
+
+        Route::delete('/cortes/{corte}', [ListaNominalCorteController::class, 'destroy'])
+            ->name('cortes.destroy')
+            ->middleware('permission:' . ListaNominalPermission::ELIMINAR->value);
     });
 
 });

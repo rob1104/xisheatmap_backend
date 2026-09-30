@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ListaNominalCorte;
 use App\Services\ListaNominalImportService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Throwable;
@@ -42,7 +43,7 @@ class ListaNominalCorteController extends Controller
     }
 
     /**
-     * Registra un nuevo corte oficial (con importación opcional de CSV).
+     * Registra un nuevo corte oficial (con importación opcional de CSV o XLSX).
      */
     public function store(Request $request, ListaNominalImportService $importService)
     {
@@ -51,7 +52,7 @@ class ListaNominalCorteController extends Controller
             'fuente'      => 'required|string|max:150',
             'descripcion' => 'nullable|string|max:255',
             'is_active'   => 'nullable|boolean',
-            'archivo'     => 'nullable|file|mimes:csv,txt|max:20480',
+            'archivo'     => 'nullable|file|mimes:csv,txt,xlsx,xlsm|max:20480',
             'municipio'   => 'nullable|integer',
         ]);
 
@@ -74,9 +75,10 @@ class ListaNominalCorteController extends Controller
             $importResult = null;
             if ($request->hasFile('archivo')) {
                 $municipio = (int) ($validated['municipio'] ?? 41);
-                $importResult = $importService->importFromCsv(
+                $importResult = $this->ejecutarImportacion(
+                    $importService,
                     $corte,
-                    $request->file('archivo')->getRealPath(),
+                    $request->file('archivo'),
                     $municipio
                 );
             }
@@ -112,20 +114,43 @@ class ListaNominalCorteController extends Controller
     }
 
     /**
-     * Importa masivamente detalles CSV a un corte existente.
+     * Garantiza la extensión del archivo para que los adaptadores (ej. XLSX) lo reconozcan.
+     */
+    protected function ejecutarImportacion(
+        ListaNominalImportService $importService,
+        ListaNominalCorte $corte,
+        UploadedFile $uploadedFile,
+        int $municipio
+    ) : array {
+        $extension = $uploadedFile->getClientOriginalExtension() ?: 'csv';
+        $tempPath = tempnam(sys_get_temp_dir(), 'web_import_') . '.' . $extension;
+        copy($uploadedFile->getRealPath(), $tempPath);
+
+        try{
+            return $importService->importFromCsv($corte, $tempPath, $municipio);
+        } finally {
+            if (file_exists($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
+    }
+
+    /**
+     * Importa masivamente detalles (CSV o XLSX) a un corte existente.
      */
     public function importDetalles(Request $request, ListaNominalCorte $corte, ListaNominalImportService $importService)
     {
         $request->validate([
-            'archivo'   => 'required|file|mimes:csv,txt|max:20480',
+            'archivo'   => 'required|file|mimes:csv,txt,xlsx,xlsm|max:20480',
             'municipio' => 'nullable|integer',
         ]);
 
         try {
             $municipio = (int) $request->input('municipio', 41);
-            $result = $importService->importFromCsv(
+            $result = $this->ejecutarImportacion(
+                $importService,
                 $corte,
-                $request->file('archivo')->getRealPath(),
+                $request->file('archivo'),
                 $municipio
             );
 

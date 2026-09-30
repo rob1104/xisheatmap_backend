@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\SpatialServiceInterface;
 use App\Models\Apoyo;
 use App\Models\IneRecord;
+use App\Models\ListaNominalCorte;
 use App\Models\SeccionElectoral;
 use Illuminate\Support\Facades\DB;
 
@@ -280,17 +281,45 @@ class SpatialService implements SpatialServiceInterface
     }
 
     /**
-     * Genera un FeatureCollection GeoJSON con métricas agregadas por sección,
-     * delimitando los conteos estrictamente al alcance territorial del municipio.
+     * Genera un featurecollection GeoJSON con métricas agregadas por sección,
+     * delimitando los conteos estrictamente al alcance territorial del municipio BE-3.
+     *
+     * - La Lista Nominal se toma del corte activo mediante LEFT JOIN sin consultas N+1.
+     *   Si no hay corte activo o la sección no tiene cifras en él, total_lista_nominal es null.
+     * - Los simpatizantes se contaran estrictamente por ubicación territorial real (seccion_gps).
+     * - cobertura_global_pct solo considera secciones con Lista Nominal mayor a 0.
+     * - total_padron_electoral es null si falta el padrón en alguna sección del corte
+     *   (no se reporta una suma parcial ni se confunde la ausencia de dato con 0).
      */
     public function getSeccionesGeoJsonWithMetrics(?int $municipio = null): array
     {
         $municipio = $municipio ?? $this->defaultMunicipio;
 
-        // Traer las secciones filtradas por municipio y entidad
-        $secciones = SeccionElectoral::forMunicipio($municipio)
-            ->where('entidad', $this->defaultEntidad)
-            ->withGeoJson()
+        $corteActivo = ListaNominalCorte::query()->active()->latestFirst()->first();
+
+        // Secciones del municipio y cifras del corte activo (LEFT JOIN)
+        $secciones = SeccionElectoral::query()
+            ->from('secciones_electorales as se')
+            ->leftJoin('lista_nominal_detalles as lnd', function ($join) use ($corteActivo) {
+                $join->on('lnd.seccion_electoral_id', '=', 'se.id')
+                    ->where('lnd.lista_nominal_corte_id', '=', $corteActivo?->id ?? 0);
+            })
+            ->where('se.municipio', $municipio)
+            ->where('se.entidad', $this->defaultEntidad)
+            ->select([
+                'se.id',
+                'se.entidad',
+                'se.municipio',
+                'se.seccion',
+                'se.distrito_federal',
+                'se.distrito_local',
+                'se.tipo',
+                'se.control',
+                'lnd.total_lista_nominal',
+                'lnd.padron_electoral',
+                DB::raw('ST_AsGeoJson(se.poligono) as geojson'),
+            ])
+            ->orderBy('se.seccion')
             ->get();
 
         $seccionCodes = $secciones->pluck('seccion')->unique()->values();
@@ -300,7 +329,6 @@ class SpatialService implements SpatialServiceInterface
 
         // Delimitar el alcance territorial de los conteos exclusivamente a las secciones del municipio
         // Se contabiliza estrictamente por la ubicación territorial real (seccion_gps)
-        // Registros sin clasificación o fuera de cobertura se dejan sin asignar
         if ($seccionCodes->isNotEmpty()) {
             $metricasInes = IneRecord::whereIn('seccion_gps', $seccionCodes)
                 ->whereNotNull('seccion_gps')
@@ -317,16 +345,48 @@ class SpatialService implements SpatialServiceInterface
                 ->toArray();
         }
 
-        $totalSimpatizantesMunicipio = array_sum($metricasInes);
-        $totalApoyosMunicipio = array_sum($metricasApoyos);
+        $totalSimpatizantesMunicipio = (int) array_sum($metricasInes);
+        $totalApoyosMunicipio = (int) array_sum($metricasApoyos);
+
+        // Registros que no se asignan a ninguna sección sin gps o fuera de la cartografía
+        $simpatizantesSinClasificacion = IneRecord::whereNull('seccion_gps')->count();
+        $apoyosSinClasificacion = Apoyo::whereNull('seccion')->count();
 
         $features = [];
+        $totalListaNominal = 0;
+        $totalPadron = 0;
+        $seccionesConListaNominal = 0;
+        $seccionesConPadron = 0;
+        $simpatizantesEnSeccionesConLN = 0;
 
         foreach ($secciones as $sec) {
-            $simpatizantes = $metricasInes[$sec->seccion] ?? 0;
-            $apoyos = $metricasApoyos[$sec->seccion] ?? 0;
+            $simpatizantes = (int) ($metricasInes[$sec->seccion] ?? 0);
+            $apoyos = (int) ($metricasApoyos[$sec->seccion] ?? 0);
 
-            $porcentajeSimpatizantes = $totalSimpatizantesMunicipio > 0
+            // null = sin dato en el corte activo; 0 = dato oficial en cero
+            $listaNominal = $sec->total_lista_nominal !== null ? (int) $sec->total_lista_nominal : null;
+            $padron = $sec->padron_electoral !== null ? (int) $sec->padron_electoral : null;
+
+            $porcentajeCobertura = ($listaNominal !== null && $listaNominal > 0)
+                ? round(($simpatizantes / $listaNominal) * 100, 2)
+                : null;
+
+            if ($listaNominal !== null) {
+                $seccionesConListaNominal++;
+                $totalListaNominal += $listaNominal;
+            }
+
+            // Numerador de la cobertura global: solo secciones donde la cobertura individual aplica (LN > 0)
+            if ($listaNominal !== null && $listaNominal > 0) {
+                $simpatizantesEnSeccionesConLN += $simpatizantes;
+            }
+
+            if ($padron !== null) {
+                $seccionesConPadron++;
+                $totalPadron += $padron;
+            }
+
+            $porcentajeRelativo = $totalSimpatizantesMunicipio > 0
                 ? round(($simpatizantes / $totalSimpatizantesMunicipio) * 100, 2)
                 : 0.0;
 
@@ -343,24 +403,58 @@ class SpatialService implements SpatialServiceInterface
                     'distrito_federal' => $sec->distrito_federal,
                     'distrito_local' => $sec->distrito_local,
                     'tipo' => $sec->tipo,
+                    'total_lista_nominal' => $listaNominal,
+                    'padron_electoral' => $padron,
                     'total_simpatizantes' => $simpatizantes,
                     'total_apoyos' => $apoyos,
-                    'porcentaje' => $porcentajeSimpatizantes,
-                    'porcentaje_simpatizantes' => $porcentajeSimpatizantes,
+                    'porcentaje_cobertura' => $porcentajeCobertura,
+                    'porcentaje_relativo_municipio' => $porcentajeRelativo,
+                    // Compatibilidad con el mapa actual se podran retirar cuando ya no se usen         
+                    'porcentaje' => $porcentajeRelativo,
+                    'porcentaje_simpatizantes' => $porcentajeRelativo,
                     'porcentaje_apoyos' => $porcentajeApoyos,
                 ],
-                'geometry' => json_decode($sec->geojson)
+                'geometry' => json_decode($sec->geojson),
             ];
         }
 
         return [
             'type' => 'FeatureCollection',
             'summary' => [
+                'municipio' => $municipio,
+                'corte_activo' => $corteActivo ? [
+                    'id' => $corteActivo->id,
+                    'fecha_corte' => $corteActivo->fecha_corte?->format('Y-m-d'),
+                    'fuente' => $corteActivo->fuente,
+                    'descripcion' => $corteActivo->descripcion,
+                ] : null,
                 'total_secciones' => count($features),
+                'secciones_con_lista_nominal' => $seccionesConListaNominal,
+                // null = ninguna sección tiene dato en el corte activo; 0 = dato oficial en cero
+                'total_lista_nominal' => $seccionesConListaNominal > 0 ? $totalListaNominal : null,
+                'secciones_con_padron_electoral' => $seccionesConPadron,
+                // Solo se reporta si todas las secciones del corte traen padrón (evita sumas parciales)
+                'total_padron_electoral' => ($seccionesConPadron > 0 && $seccionesConPadron === $seccionesConListaNominal)
+                    ? $totalPadron
+                    : null,
+                'simpatizantes' => [
+                    'clasificados_en_secciones' => $totalSimpatizantesMunicipio,
+                    'sin_clasificacion_territorial' => $simpatizantesSinClasificacion,
+                    'total_general' => $totalSimpatizantesMunicipio + $simpatizantesSinClasificacion,
+                ],
+                'apoyos' => [
+                    'clasificados_en_secciones' => $totalApoyosMunicipio,
+                    'total_general' => $totalApoyosMunicipio + $apoyosSinClasificacion,
+                ],
+                // Numerador: simpatizantes de secciones con LN > 0; denominador: LN total del corte
+                'cobertura_global_pct' => $totalListaNominal > 0
+                    ? round(($simpatizantesEnSeccionesConLN / $totalListaNominal) * 100, 2)
+                    : null,
+                // Compatibilidad con el formato anterior
                 'total_simpatizantes' => $totalSimpatizantesMunicipio,
                 'total_apoyos' => $totalApoyosMunicipio,
             ],
-            'features' => $features
+            'features' => $features,
         ];
     }
 }

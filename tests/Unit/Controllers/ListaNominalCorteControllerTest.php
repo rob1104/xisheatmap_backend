@@ -4,11 +4,14 @@ namespace Tests\Unit\Controllers;
 
 use App\Http\Controllers\Admin\ListaNominalCorteController;
 use App\Models\ListaNominalCorte;
+use App\Models\ListaNominalDetalle;
+use App\Models\SeccionElectoral;
 use App\Services\ListaNominalImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Mockery;
 use ReflectionMethod;
 use RuntimeException;
@@ -42,9 +45,9 @@ class ListaNominalCorteControllerTest extends TestCase
 
         $this->assertInstanceOf(JsonResponse::class, $response);
         $data = $response->getData(true);
-        $this->assertArrayHasKey('data', $data);
-        $this->assertCount(1, $data['data']);
-        $this->assertEquals('INE RFE', $data['data'][0]['fuente']);
+        $this->assertIsArray($data);
+        $this->assertCount(1, $data);
+        $this->assertEquals('INE RFE', $data[0]['fuente']);
     }
 
     public function test_store_creates_corte_without_file(): void
@@ -67,7 +70,7 @@ class ListaNominalCorteControllerTest extends TestCase
 
         $this->assertDatabaseHas('lista_nominal_cortes', [
             'fuente' => 'INE 2024',
-            'is_active' => true,
+            'is_active' => false,
         ]);
     }
 
@@ -143,7 +146,7 @@ class ListaNominalCorteControllerTest extends TestCase
 
         $data = $response->getData(true);
         $this->assertFalse($data['success']);
-        $this->assertStringContainsString('Formato de columnas inválido', $data['message']);
+        $this->assertStringContainsString('Ocurrió un error al registrar el corte', $data['message']);
 
         // Verifica que la transacción hizo rollback y no persistió el corte
         $this->assertDatabaseMissing('lista_nominal_cortes', [
@@ -224,11 +227,21 @@ class ListaNominalCorteControllerTest extends TestCase
 
         $data = $response->getData(true);
         $this->assertFalse($data['success']);
-        $this->assertStringContainsString('Error al procesar archivo CSV', $data['message']);
+        $this->assertStringContainsString('Ocurrió un error al procesar el archivo', $data['message']);
     }
 
     public function test_activar_sets_corte_active_and_deactivates_others_atomically(): void
     {
+        $seccion = SeccionElectoral::create([
+            'entidad'          => 28,
+            'municipio'        => 41,
+            'seccion'          => '1563',
+            'distrito_federal' => 5,
+            'distrito_local'   => 14,
+            'tipo'             => 1,
+            'poligono'         => DB::raw("ST_GeomFromText('POLYGON((-99.16 23.70, -99.12 23.70, -99.12 23.76, -99.16 23.76, -99.16 23.70))', 4326)"),
+        ]);
+
         $corte1 = ListaNominalCorte::create([
             'fecha_corte' => '2024-01-01',
             'fuente' => 'INE Corte 1',
@@ -241,6 +254,12 @@ class ListaNominalCorteControllerTest extends TestCase
             'is_active' => false,
         ]);
 
+        ListaNominalDetalle::create([
+            'lista_nominal_corte_id' => $corte2->id,
+            'seccion_electoral_id'   => $seccion->id,
+            'total_lista_nominal'    => 100,
+        ]);
+
         request()->headers->set('Accept', 'application/json');
 
         $response = $this->controller->activar($corte2);
@@ -250,6 +269,24 @@ class ListaNominalCorteControllerTest extends TestCase
 
         $this->assertFalse($corte1->fresh()->is_active);
         $this->assertTrue($corte2->fresh()->is_active);
+    }
+
+    public function test_activar_fails_when_corte_has_no_detalles(): void
+    {
+        $corte = ListaNominalCorte::create([
+            'fecha_corte' => '2024-01-01',
+            'fuente' => 'INE Sin Detalles',
+            'is_active' => false,
+        ]);
+
+        request()->headers->set('Accept', 'application/json');
+
+        $response = $this->controller->activar($corte);
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertEquals(422, $response->getStatusCode());
+        $this->assertFalse($response->getData(true)['success']);
+        $this->assertFalse($corte->fresh()->is_active);
     }
 
     public function test_update_modifies_corte_metadata(): void

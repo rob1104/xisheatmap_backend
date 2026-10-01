@@ -8,6 +8,7 @@ use App\Services\ListaNominalImportService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Throwable;
 
@@ -22,15 +23,14 @@ class ListaNominalCorteController extends Controller
 
         $cortes = ListaNominalCorte::query()
             ->withCount('detalles')
-            ->withSum('detalles', 'total_lista_nominal')
-            ->withSum('detalles', 'padron_electoral')
+            ->withSum('detalles as total_lista_nominal', 'total_lista_nominal')
+            ->withSum('detalles as padron_electoral', 'padron_electoral')
             ->when($search, function ($query, $search) {
                 $query->where('fuente', 'like', "%{$search}%")
                     ->orWhere('descripcion', 'like', "%{$search}%");
             })
             ->latestFirst()
-            ->paginate(15)
-            ->withQueryString();
+            ->get();
 
         if ($request->wantsJson()) {
             return response()->json($cortes);
@@ -51,25 +51,19 @@ class ListaNominalCorteController extends Controller
             'fecha_corte' => 'required|date',
             'fuente'      => 'required|string|max:150',
             'descripcion' => 'nullable|string|max:255',
-            'is_active'   => 'nullable|boolean',
             'archivo'     => 'nullable|file|mimes:csv,txt,xlsx,xlsm|max:20480',
             'municipio'   => 'nullable|integer',
         ]);
 
-        $isActive = (bool) ($validated['is_active'] ?? false);
-
         DB::beginTransaction();
 
         try {
-            if ($isActive) {
-                ListaNominalCorte::where('is_active', true)->update(['is_active' => false]);
-            }
 
             $corte = ListaNominalCorte::create([
                 'fecha_corte' => $validated['fecha_corte'],
                 'fuente'      => $validated['fuente'],
                 'descripcion' => $validated['descripcion'] ?? null,
-                'is_active'   => $isActive,
+                'is_active'   => false, // siempre inactivo en la alta
             ]);
 
             $importResult = null;
@@ -101,15 +95,17 @@ class ListaNominalCorteController extends Controller
             return redirect()->back()->with('success', $msg);
         } catch (Throwable $e) {
             DB::rollBack();
+            Log::error('Error al registrar corte de Lista Nominal: ' . $e->getMessage(), ['exception' => $e]);
+            $message = 'Ocurrió un error al registrar el corte de Lista Nominal.';
 
             if ($request->wantsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Error al registrar el corte: ' . $e->getMessage(),
+                    'message' => $message,
                 ], 422);
             }
 
-            return redirect()->back()->withErrors(['error' => 'Error al registrar el corte: ' . $e->getMessage()]);
+            return redirect()->back()->withErrors(['error' => $message]);
         }
     }
 
@@ -163,14 +159,17 @@ class ListaNominalCorteController extends Controller
 
             return redirect()->back()->with('success', "Importación completada: {$result['total_guardados']} registros guardados.");
         } catch (Throwable $e) {
+            Log::error('Error durante la importación de Lista Nominal: ' . $e->getMessage(),['exception' => $e]);
+            $message = 'Ocurrió un error al procesar el archivo de Lista Nominal.';
+
             if ($request->wantsJson()) {
                 return response()->json([
                     'success' => false,
-                    'message' => $e->getMessage(),
+                    'message' => $message,
                 ], 422);
             }
 
-            return redirect()->back()->withErrors(['archivo' => 'Error durante la importación: ' . $e->getMessage()]);
+            return redirect()->back()->withErrors(['archivo' => $message]);
         }
     }
 
@@ -179,19 +178,31 @@ class ListaNominalCorteController extends Controller
      */
     public function activar(ListaNominalCorte $corte)
     {
-        DB::transaction(function () use ($corte) {
-            ListaNominalCorte::where('is_active', true)
-                ->where('id', '!=', $corte->id)
-                ->update(['is_active' => false]);
+        if (! $corte->detalles()->exists()) {
+            $msg = 'No se puede activar un corte que no tiene detalles o secciones cargadas.';
 
+            if (request()->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $msg,
+                ], 422);
+            }
+
+            return redirect()->back()->withErrors(['corte' => $msg]);
+        }
+
+        DB::transaction(function () use ($corte){
+            ListaNominalCorte::where('is_active', true)
+                ->where('id', "!=", $corte->id)
+                ->update(['is_active' => false]);
             $corte->update(['is_active' => true]);
         });
 
         if (request()->wantsJson()) {
             return response()->json([
-                'success' => true,
+                'success'=> true,
                 'message' => "El corte con fecha {$corte->fecha_corte->format('Y-m-d')} ha sido activado.",
-                'corte'   => $corte->fresh(),
+                'corte' => $corte->fresh(),
             ]);
         }
 

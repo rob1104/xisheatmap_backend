@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\ListaNominalCorte;
+use App\Models\ListaNominalDetalle;
 use App\Models\SeccionElectoral;
 use App\Models\User;
 use Database\Seeders\ListaNominalPermissionSeeder;
@@ -43,10 +44,10 @@ class ListaNominalCorteControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->admin)
-            ->getJson(route('admin.lista-nominal.cortes.index'));
+            ->getJson(route('lista-nominal.index'));
 
         $response->assertStatus(200)
-            ->assertJsonStructure(['data', 'total']);
+            ->assertJsonCount(1);
     }
 
     public function test_can_create_corte_without_file(): void
@@ -55,18 +56,18 @@ class ListaNominalCorteControllerTest extends TestCase
             'fecha_corte' => '2024-03-31',
             'fuente'      => 'INE RFE Oficial',
             'descripcion' => 'Corte previo a elecciones',
-            'is_active'   => true,
+            'is_active'   => true, // Enviado como true pero debe crearse inactivo
         ];
 
         $response = $this->actingAs($this->admin)
-            ->postJson(route('admin.lista-nominal.cortes.store'), $payload);
+            ->postJson(route('lista-nominal.cortes.store'), $payload);
 
         $response->assertStatus(201)
             ->assertJsonPath('success', true);
 
         $this->assertDatabaseHas('lista_nominal_cortes', [
             'fuente'    => 'INE RFE Oficial',
-            'is_active' => true,
+            'is_active' => false,
         ]);
     }
 
@@ -95,7 +96,7 @@ class ListaNominalCorteControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.lista-nominal.cortes.store'), $payload, [
+            ->post(route('lista-nominal.cortes.store'), $payload, [
                 'Accept' => 'application/json',
             ]);
 
@@ -135,7 +136,7 @@ class ListaNominalCorteControllerTest extends TestCase
         ];
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.lista-nominal.cortes.store'), $payload, [
+            ->post(route('lista-nominal.cortes.store'), $payload, [
                 'Accept' => 'application/json',
             ]);
 
@@ -171,7 +172,7 @@ class ListaNominalCorteControllerTest extends TestCase
         $file = UploadedFile::fake()->createWithContent('import.csv', $csvContent);
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.lista-nominal.cortes.import', $corte), [
+            ->post(route('lista-nominal.cortes.import', $corte), [
                 'archivo'   => $file,
                 'municipio' => 41,
             ], [
@@ -213,7 +214,7 @@ class ListaNominalCorteControllerTest extends TestCase
         );
 
         $response = $this->actingAs($this->admin)
-            ->post(route('admin.lista-nominal.cortes.import', $corte), [
+            ->post(route('lista-nominal.cortes.import', $corte), [
                 'archivo'   => $file,
                 'municipio' => 41,
             ], [
@@ -233,6 +234,16 @@ class ListaNominalCorteControllerTest extends TestCase
 
     public function test_atomic_activation_deactivates_previous_corte(): void
     {
+        $seccion = SeccionElectoral::create([
+            'entidad'          => 28,
+            'municipio'        => 41,
+            'seccion'          => '1563',
+            'distrito_federal' => 5,
+            'distrito_local'   => 14,
+            'tipo'             => 1,
+            'poligono'         => DB::raw("ST_GeomFromText('POLYGON((-99.16 23.70, -99.12 23.70, -99.12 23.76, -99.16 23.76, -99.16 23.70))', 4326)"),
+        ]);
+
         $corte1 = ListaNominalCorte::create([
             'fecha_corte' => '2024-01-01',
             'fuente'      => 'Fuente 1',
@@ -245,13 +256,36 @@ class ListaNominalCorteControllerTest extends TestCase
             'is_active'   => false,
         ]);
 
+        ListaNominalDetalle::create([
+            'lista_nominal_corte_id' => $corte2->id,
+            'seccion_electoral_id'   => $seccion->id,
+            'total_lista_nominal'    => 1000,
+        ]);
+
         $response = $this->actingAs($this->admin)
-            ->patchJson(route('admin.lista-nominal.cortes.activar', $corte2));
+            ->patchJson(route('lista-nominal.cortes.activar', $corte2));
 
         $response->assertStatus(200);
 
         $this->assertFalse($corte1->fresh()->is_active);
         $this->assertTrue($corte2->fresh()->is_active);
+    }
+
+    public function test_cannot_activate_corte_without_detalles(): void
+    {
+        $corte = ListaNominalCorte::create([
+            'fecha_corte' => '2024-02-01',
+            'fuente'      => 'Fuente Sin Detalles',
+            'is_active'   => false,
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->patchJson(route('lista-nominal.cortes.activar', $corte));
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->assertFalse($corte->fresh()->is_active);
     }
 
     public function test_can_update_corte_metadata(): void
@@ -264,7 +298,7 @@ class ListaNominalCorteControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->admin)
-            ->putJson(route('admin.lista-nominal.cortes.update', $corte), [
+            ->putJson(route('lista-nominal.cortes.update', $corte), [
                 'fecha_corte' => '2024-02-01',
                 'fuente'      => 'Fuente Actualizada',
                 'descripcion' => 'Descripción nueva',
@@ -289,7 +323,7 @@ class ListaNominalCorteControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->admin)
-            ->deleteJson(route('admin.lista-nominal.cortes.destroy', $corteActivo));
+            ->deleteJson(route('lista-nominal.cortes.destroy', $corteActivo));
 
         $response->assertStatus(422)
             ->assertJsonPath('success', false);
@@ -306,7 +340,7 @@ class ListaNominalCorteControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->admin)
-            ->deleteJson(route('admin.lista-nominal.cortes.destroy', $corteInactivo));
+            ->deleteJson(route('lista-nominal.cortes.destroy', $corteInactivo));
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true);
@@ -316,7 +350,7 @@ class ListaNominalCorteControllerTest extends TestCase
 
     public function test_unauthenticated_user_cannot_access_cortes(): void
     {
-        $response = $this->getJson(route('admin.lista-nominal.cortes.index'));
+        $response = $this->getJson(route('lista-nominal.index'));
         $response->assertStatus(401);
     }
 
@@ -327,7 +361,7 @@ class ListaNominalCorteControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($brigadista)
-            ->getJson(route('admin.lista-nominal.cortes.index'));
+            ->getJson(route('lista-nominal.index'));
 
         $response->assertStatus(403);
     }
@@ -347,12 +381,12 @@ class ListaNominalCorteControllerTest extends TestCase
 
         // 1. Ver cortes: Autorizado (200)
         $this->actingAs($gestor)
-            ->getJson(route('admin.lista-nominal.cortes.index'))
+            ->getJson(route('lista-nominal.index'))
             ->assertStatus(200);
 
         // 2. Crear corte: Prohibido (403)
         $this->actingAs($gestor)
-            ->postJson(route('admin.lista-nominal.cortes.store'), [
+            ->postJson(route('lista-nominal.cortes.store'), [
                 'fecha_corte' => '2024-06-01',
                 'fuente'      => 'INE',
             ])
@@ -360,12 +394,12 @@ class ListaNominalCorteControllerTest extends TestCase
 
         // 3. Activar corte: Prohibido (403)
         $this->actingAs($gestor)
-            ->patchJson(route('admin.lista-nominal.cortes.activar', $corte))
+            ->patchJson(route('lista-nominal.cortes.activar', $corte))
             ->assertStatus(403);
 
         // 4. Actualizar metadatos: Prohibido (403)
         $this->actingAs($gestor)
-            ->putJson(route('admin.lista-nominal.cortes.update', $corte), [
+            ->putJson(route('lista-nominal.cortes.update', $corte), [
                 'fecha_corte' => '2024-06-01',
                 'fuente'      => 'INE Editado',
             ])
@@ -373,7 +407,7 @@ class ListaNominalCorteControllerTest extends TestCase
 
         // 5. Eliminar corte: Prohibido (403)
         $this->actingAs($gestor)
-            ->deleteJson(route('admin.lista-nominal.cortes.destroy', $corte))
+            ->deleteJson(route('lista-nominal.cortes.destroy', $corte))
             ->assertStatus(403);
     }
 

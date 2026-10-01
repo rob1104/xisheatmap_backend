@@ -1,11 +1,13 @@
 <?php
 
+use App\Enums\ListaNominalPermission;
 use App\Http\Controllers\Admin\ApoyoController;
 use App\Http\Controllers\Admin\HeatMapController;
 use App\Http\Controllers\Admin\IneRecordController;
 use App\Http\Controllers\Admin\TarjetaController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\LogController;
+use App\Http\Controllers\Admin\ListaNominalCorteController;
 use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\CheckAdminAccess;
@@ -83,6 +85,40 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::get('/rastreo-brigadistas', [TrackingController::class, 'obtenerActivos'])->name('rastreo-brigadistas');
     Route::get('/spatial/secciones-geojson', [\App\Http\Controllers\Api\SpatialController::class, 'seccionesGeoJson'])->name('spatial.secciones-geojson');
 
+    // ---------------------------------------------------
+    // MÓDULO DE LISTA NOMINAL (CORTES Y DETALLES)
+    // ---------------------------------------------------
+     Route::prefix('admin/lista-nominal')->group(function () {
+
+        // 1. Ruta principal para el sidebar/menú del Layout
+        Route::get('/cortes', [ListaNominalCorteController::class, 'index'])
+            ->name('lista-nominal.index')
+            ->middleware('permission:' . ListaNominalPermission::VER->value);
+
+        // 2. Operaciones sobre los cortes (lista-nominal.cortes.*)
+        Route::prefix('cortes')->name('lista-nominal.cortes.')->group(function () {
+            Route::post('/', [ListaNominalCorteController::class, 'store'])
+                    ->name('store')
+                    ->middleware('permission:' . ListaNominalPermission::CREAR->value);
+
+                Route::post('/{corte}/import', [ListaNominalCorteController::class,'importDetalles'])
+                    ->name('import')
+                    ->middleware('permission:' . ListaNominalPermission::CREAR->value);
+
+                // Nota: Aquí es solo '/{corte}/activar' porque ya está dentro del prefijo 'cortes'
+                Route::patch('/{corte}/activar', [ListaNominalCorteController::class, 'activar'])
+                    ->name('activar')
+                    ->middleware('permission:' . ListaNominalPermission::ACTIVAR->value);
+
+                Route::put('/{corte}', [ListaNominalCorteController::class, 'update'])
+                    ->name('update')
+                    ->middleware('permission:' . ListaNominalPermission::EDITAR->value);
+
+                Route::delete('/{corte}', [ListaNominalCorteController::class, 'destroy'])
+                    ->name('destroy')
+                    ->middleware('permission:' . ListaNominalPermission::ELIMINAR->value);
+            });
+        });
 });
 
 // Pega esto al final de routes/web.php

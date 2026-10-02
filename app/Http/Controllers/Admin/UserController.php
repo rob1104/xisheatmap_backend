@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\UserRole;
+use App\Exports\UsersExport;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class UserController extends Controller
 {
@@ -17,7 +20,7 @@ class UserController extends Controller
     {
         $query = User::with('parent:id,name,role')
             ->with(['children' => function ($q) {
-                $q->select('id', 'parent_id', 'name', 'role')->withCount('ines');
+                $q->select('id', 'parent_id', 'name', 'role', 'created_at')->withCount('ines');
             }])
             ->withCount(['children', 'ines']);
 
@@ -57,7 +60,7 @@ class UserController extends Controller
         // Para el organigrama necesitamos un árbol.
         // Forma fácil: obtener todos y armar el árbol en Vue, o armarlo aquí.
         // Vamos a enviar la lista plana con parent_id y que una librería o lógica en Vue la renderice.
-        $users = User::select('id', 'name', 'role', 'parent_id')
+        $users = User::select('id', 'name', 'role', 'parent_id', 'created_at')
             ->withCount('ines')
             ->get()
             ->map(function ($user) {
@@ -68,6 +71,7 @@ class UserController extends Controller
                     'level' => $user->role->level(),
                     'parent_id' => $user->parent_id,
                     'ines_count' => $user->ines_count,
+                    'created_at' => $user->created_at,
                 ];
             });
 
@@ -172,5 +176,32 @@ class UserController extends Controller
         $user->delete();
 
         return back()->with('success', 'Usuario eliminado correctamente.');
+    }
+
+    public function exportExcel(Request $request)
+    {
+        return Excel::download(new UsersExport($request->search, $request->role), 'catalogo_cuentas.xlsx');
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $query = User::with('parent:id,name,role')->withCount(['children', 'ines']);
+
+        if ($request->search) {
+            $query->where(function ($q) use ($request) {
+                $q->where('name', 'like', "%{$request->search}%")
+                  ->orWhere('email', 'like', "%{$request->search}%");
+            });
+        }
+
+        if ($request->role) {
+            $query->where('role', $request->role);
+        }
+
+        $users = $query->orderBy('role')->orderBy('name')->get();
+        $filters = $request->only(['search', 'role']);
+
+        $pdf = Pdf::loadView('admin.users.pdf', compact('users', 'filters'));
+        return $pdf->download('catalogo_cuentas.pdf');
     }
 }

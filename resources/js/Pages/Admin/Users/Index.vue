@@ -16,6 +16,14 @@
                     </p>
                 </div>
                 <div class="mt-4 sm:mt-0 space-x-3 flex">
+                    <a :href="route('usuarios.export.excel', { search: filters?.search, role: filters?.role })" class="inline-flex items-center justify-center px-4 py-2.5 border border-emerald-700/50 text-sm font-bold rounded-xl shadow-sm text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/40 focus:outline-none transition-all" title="Exportar a Excel">
+                        <svg class="w-5 h-5 mr-2 -ml-1 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Excel
+                    </a>
+                    <a :href="route('usuarios.export.pdf', { search: filters?.search, role: filters?.role })" target="_blank" class="inline-flex items-center justify-center px-4 py-2.5 border border-rose-700/50 text-sm font-bold rounded-xl shadow-sm text-rose-400 bg-rose-900/20 hover:bg-rose-900/40 focus:outline-none transition-all" title="Exportar a PDF">
+                        <svg class="w-5 h-5 mr-2 -ml-1 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                        PDF
+                    </a>
                     <Link :href="route('usuarios.organigrama')" class="inline-flex items-center justify-center px-4 py-2.5 border border-slate-700 text-sm font-bold rounded-xl shadow-sm text-slate-300 bg-slate-800 hover:bg-slate-700 focus:outline-none transition-all">
                         <svg class="w-5 h-5 mr-2 -ml-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                         Ver Organigrama
@@ -56,12 +64,13 @@
                         <th scope="col" class="px-3 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Nivel / Rol</th>
                         <th scope="col" class="px-3 py-4 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Estructura</th>
                         <th scope="col" class="px-3 py-4 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Capturas</th>
+                        <th scope="col" class="px-3 py-4 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Creado El</th>
                         <th scope="col" class="relative py-4 pl-3 pr-4 sm:pr-6"><span class="sr-only">Acciones</span></th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800 bg-slate-900">
                     <tr v-if="users.data.length === 0">
-                        <td colspan="5" class="px-6 py-12 text-center text-slate-500 font-bold">No se encontraron usuarios.</td>
+                        <td colspan="6" class="px-6 py-12 text-center text-slate-500 font-bold">No se encontraron usuarios.</td>
                     </tr>
                     <tr v-for="user in users.data" :key="user.id" class="hover:bg-slate-800/50 transition-colors group">
 
@@ -106,6 +115,13 @@
 
                         <td class="whitespace-nowrap px-3 py-4 text-center font-black text-slate-200">
                             {{ user.ines_count }}
+                        </td>
+
+                        <td class="whitespace-nowrap px-3 py-4 text-center text-sm text-slate-300">
+                            <div class="flex flex-col items-center justify-center">
+                                <span class="font-bold text-slate-200">{{ formatDate(user.created_at) }}</span>
+                                <span class="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{{ formatTime(user.created_at) }}</span>
+                            </div>
                         </td>
 
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -297,6 +313,18 @@
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue'
+
+const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('es-MX', { year: 'numeric', month: 'short', day: '2-digit' }).format(date);
+};
+
+const formatTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true }).format(date);
+};
 
 const props = defineProps({
     users: Object, // Changed to Object for paginator

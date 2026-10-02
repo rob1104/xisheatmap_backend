@@ -175,4 +175,104 @@ class ListaNominalImportServiceTest extends TestCase
 
         @unlink($xlsxPath);
     }
+
+    public function test_filas_duplicadas_aplican_ultimo_valor_gana_y_no_se_cuentan_como_omitidas(): void
+    {
+        $seccion = SeccionElectoral::create([
+            'entidad'          => 28,
+            'municipio'        => 41,
+            'seccion'          => '1563',
+            'distrito_federal' => 5,
+            'distrito_local'   => 14,
+            'tipo'             => 1,
+            'poligono'         => DB::raw("ST_GeomFromText('POLYGON((-99.16 23.70, -99.12 23.70, -99.12 23.76, -99.16 23.76, -99.16 23.70))', 4326)"),
+        ]);
+
+        $corte = ListaNominalCorte::create([
+            'fecha_corte' => '2024-03-31',
+            'fuente'      => 'INE - RFE',
+            'descripcion' => 'Corte prueba duplicados',
+            'is_active'   => true,
+        ]);
+
+        // CSV con sección 1563 dos veces (la segunda fila debe prevalecer) y 9999 inexistente (omitida)
+        $csvContent = implode("\n", [
+            "seccion,total_lista_nominal,padron_electoral,hombres,mujeres,no_binario",
+            "1563,1000,1050,500,500,0",
+            "1563,1850,1900,900,950,0",
+            "9999,500,520,250,270,0",
+        ]);
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'ln_test_dup_') . '.csv';
+        file_put_contents($tmpFile, $csvContent);
+
+        $service = new ListaNominalImportService();
+        $result = $service->importFromCsv($corte, $tmpFile, 41);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals(3, $result['total_procesadas']);
+        $this->assertEquals(1, $result['insertadas']);
+        $this->assertEquals(1, $result['filas_duplicadas']);
+        $this->assertEquals(1, $result['filas_omitidas']); // Solo 9999 (sin polígono), el duplicado NO se suma como omitido
+        $this->assertEquals(1, $result['total_omitidos']);
+        $this->assertEquals(1, $result['total_guardados']);
+
+        // Comprobar que en base de datos quedó el último valor (último valor gana)
+        $this->assertDatabaseHas('lista_nominal_detalles', [
+            'lista_nominal_corte_id' => $corte->id,
+            'seccion_electoral_id'   => $seccion->id,
+            'total_lista_nominal'    => 1850,
+            'padron_electoral'       => 1900,
+            'hombres'                => 900,
+            'mujeres'                => 950,
+        ]);
+
+        @unlink($tmpFile);
+    }
+
+    public function test_fila_con_valores_opcionales_invalidos_es_rechazada_y_se_cuenta_como_omitida(): void
+    {
+        $seccion = SeccionElectoral::create([
+            'entidad'          => 28,
+            'municipio'        => 41,
+            'seccion'          => '1563',
+            'distrito_federal' => 5,
+            'distrito_local'   => 14,
+            'tipo'             => 1,
+            'poligono'         => DB::raw("ST_GeomFromText('POLYGON((-99.16 23.70, -99.12 23.70, -99.12 23.76, -99.16 23.76, -99.16 23.70))', 4326)"),
+        ]);
+
+        $corte = ListaNominalCorte::create([
+            'fecha_corte' => '2024-03-31',
+            'fuente'      => 'INE - RFE',
+            'descripcion' => 'Corte prueba valores invalidos',
+            'is_active'   => true,
+        ]);
+
+        // CSV con padrón 'ABC' (inválido)
+        $csvContent = implode("\n", [
+            "seccion,total_lista_nominal,padron_electoral,hombres,mujeres,no_binario",
+            "1563,1850,ABC,900,950,0",
+        ]);
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'ln_test_invalid_') . '.csv';
+        file_put_contents($tmpFile, $csvContent);
+
+        $service = new ListaNominalImportService();
+        $result = $service->importFromCsv($corte, $tmpFile, 41);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals(1, $result['total_procesadas']);
+        $this->assertEquals(0, $result['insertadas']);
+        $this->assertEquals(1, $result['filas_invalidas']);
+        $this->assertEquals(1, $result['filas_omitidas']);
+        $this->assertEquals(0, $result['total_guardados']);
+
+        $this->assertDatabaseMissing('lista_nominal_detalles', [
+            'lista_nominal_corte_id' => $corte->id,
+            'seccion_electoral_id'   => $seccion->id,
+        ]);
+
+        @unlink($tmpFile);
+    }
 }

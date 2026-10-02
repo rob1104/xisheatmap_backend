@@ -75,4 +75,28 @@ class RowValidatorTest extends TestCase
         $this->assertNull($result->sanitizedData['mujeres']);
         $this->assertEquals(0, $result->sanitizedData['no_binario']); // Default a 0
     }
+
+    public function test_falla_con_valores_opcionales_invalidos(): void
+    {
+        $campos = ['padron_electoral', 'hombres', 'mujeres', 'no_binario'];
+        $valoresInvalidos = ['ABC', '-5', '12.5'];
+
+        foreach ($campos as $campo) {
+            foreach ($valoresInvalidos as $valor) {
+                $input = [
+                    'seccion'             => '1563',
+                    'total_lista_nominal' => '1850',
+                    $campo                => $valor,
+                ];
+
+                $result = $this->validator->validate($input);
+
+                $this->assertFalse(
+                    $result->isValid,
+                    "El campo '{$campo}' con valor '{$valor}' debió fallar la validación."
+                );
+                $this->assertNotEmpty($result->errorMessage);
+            }
+        }
+    }
 }

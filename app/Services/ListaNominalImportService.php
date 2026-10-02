@@ -147,7 +147,7 @@ class ListaNominalImportService
                 $batch = [];
             }
 
-            $filasOmitidas = $filasInvalidas + $filasSinPoligono + $filasDuplicadas;
+            $filasOmitidas = $filasInvalidas + $filasSinPoligono;
             $registrosGuardados = $insertadas + $actualizadas;
 
             activity()

@@ -92,7 +92,7 @@ class RowValidator implements RowValidatorInterface
         }
 
         if (!ctype_digit($trimmed)) {
-            return null;
+            return false;
         }
 
         return (int) $trimmed;

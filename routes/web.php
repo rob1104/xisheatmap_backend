@@ -55,6 +55,8 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::get('/expedientes/foto/{id}/{tipo}', [IneRecordController::class, 'showPhoto'])
         ->name('expedientes.foto');
 
+    Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
+
     Route::get('/usuarios/export/excel', [UserController::class, 'exportExcel'])->name('usuarios.export.excel');
     Route::get('/usuarios/export/pdf', [UserController::class, 'exportPdf'])->name('usuarios.export.pdf');
     Route::get('/usuarios', [UserController::class, 'index'])->name('usuarios.index');

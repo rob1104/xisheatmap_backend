@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\ListaNominalPermission;
+use App\Enums\RolePermission;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -21,7 +22,7 @@ class ListaNominalPermissionSeeder extends Seeder
         // Limpia caché interna de permisos de Spatie
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Crea los permisos a partir de los casos de ListaNominalPermission
+        // Crea los permisos de Lista Nominal
         foreach (ListaNominalPermission::cases() as $permission) {
             Permission::firstOrCreate([
                 'name' => $permission->value,
@@ -29,12 +30,25 @@ class ListaNominalPermissionSeeder extends Seeder
             ]);
         }
 
+        // Crea los permisos del módulo de Roles (roles.ver, roles.crear, roles.editar, roles.eliminar, roles.gestionar)
+        foreach (RolePermission::cases() as $permission) {
+            Permission::firstOrCreate([
+                'name' => $permission->value,
+                'guard_name' => 'web',
+            ]);
+        }
+
+        $allSystemPermissions = array_merge(
+            ListaNominalPermission::values(),
+            RolePermission::values()
+        );
+
         // Matriz de asignación de permisos usando los 6 roles canónicos
         $rolePermissions = [
-            // Administrador: Todos los permisos del módulo
-            UserRole::ADMINISTRADOR->value => ListaNominalPermission::values(),
+            // Administrador: Todos los permisos de Lista Nominal y Gestión de Roles
+            UserRole::ADMINISTRADOR->value => $allSystemPermissions,
 
-            // Roles operativos con permiso únicamente de lectura/visualización
+            // Roles operativos con permiso únicamente de lectura/visualización en Lista Nominal
             UserRole::COORDINADOR_TERRITORIAL->value => [
                 ListaNominalPermission::VER->value,
             ],
@@ -42,7 +56,7 @@ class ListaNominalPermissionSeeder extends Seeder
                 ListaNominalPermission::VER->value,
             ],
 
-            // Roles inferiores sin permisos sobre el módulo
+            // Roles inferiores sin permisos administrativos
             UserRole::PRESIDENTE_COMITE->value => [],
             UserRole::INTEGRANTE_COMITE->value => [],
             UserRole::AFINES->value => [],
@@ -50,7 +64,7 @@ class ListaNominalPermissionSeeder extends Seeder
 
         $modulePermissions = ListaNominalPermission::values();
 
-        // Crear/Obtener roles canónicos y sincronizar únicamente los permisos de lista nominal
+        // Crear/Obtener roles canónicos y sincronizar únicamente los permisos de lista nominal (y roles para Admin)
         foreach ($rolePermissions as $roleName => $permission) {
             $role = Role::firstOrCreate([
                 'name' => $roleName,

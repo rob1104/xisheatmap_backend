@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\ApoyoController;
 use App\Http\Controllers\Admin\HeatMapController;
 use App\Http\Controllers\Admin\IneRecordController;
 use App\Http\Controllers\Admin\TarjetaController;
+use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\ListaNominalCorteController;
@@ -40,7 +41,7 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
             'capturas_hoy' => IneRecord::whereDate('created_at', Carbon::today())->count(),
 
             // 3. Usuarios con el rol de brigadista
-            'en_campo' => User::where('role', 'brigadista')->count(),
+            'en_campo' => User::whereHas('roles', fn ($q) => $q->whereNotIn('name', ['Administrador', 'Coordinador territorial']))->count(),
 
             // 4. Total de tarjetas generadas
             'tarjetas' => TarjetaDescuento::count(),
@@ -64,6 +65,7 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::post('/usuarios', [UserController::class, 'store'])->name('usuarios.store');
     Route::put('/usuarios/{user}', [UserController::class, 'update'])->name('usuarios.update');
     Route::delete('/usuarios/{user}', [UserController::class, 'destroy'])->name('usuarios.destroy');
+    Route::resource('roles', RoleController::class)->except(['show', 'create', 'edit']);
     Route::get('/heatmap', [HeatMapController::class, 'index'])->name('heatmap.index');
 
     Route::get('/tarjetas', [TarjetaController::class, 'index'])->name('tarjetas.index');

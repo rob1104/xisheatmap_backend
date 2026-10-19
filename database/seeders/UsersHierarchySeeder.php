@@ -2,11 +2,13 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\User;
 use App\Enums\UserRole;
-use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 use Faker\Factory as Faker;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class UsersHierarchySeeder extends Seeder
 {
@@ -15,6 +17,16 @@ class UsersHierarchySeeder extends Seeder
      */
     public function run(): void
     {
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
+        // Asegurar que los 6 roles canónicos existan en Spatie con guard_name = 'web'
+        foreach (UserRole::cases() as $roleCase) {
+            Role::firstOrCreate([
+                'name' => $roleCase->value,
+                'guard_name' => 'web',
+            ]);
+        }
+
         $faker = Faker::create('es_ES');
         $password = Hash::make('password123');
 
@@ -24,10 +36,12 @@ class UsersHierarchySeeder extends Seeder
         // Buscar el Administrador existente (ID 3)
         $admin = User::find(3);
 
-        if (!$admin || $admin->role->value !== UserRole::ADMINISTRADOR->value) {
-            $this->command->error('El usuario con ID 3 no es Administrador. Usaremos el primer Administrador disponible.');
-            $admin = User::where('role', UserRole::ADMINISTRADOR->value)->first();
-            if (!$admin) return;
+        if (! $admin || ! $admin->hasRole(UserRole::ADMINISTRADOR->value)) {
+            $this->command?->error('El usuario con ID 3 no es Administrador. Usaremos el primer Administrador disponible.');
+            $admin = User::role(UserRole::ADMINISTRADOR->value)->first();
+            if (! $admin) {
+                return;
+            }
         }
 
         // Distribución exacta para asegurar que todos tengan hijos
@@ -38,15 +52,15 @@ class UsersHierarchySeeder extends Seeder
         // Nivel 5: 1 hijo por padre = 16
 
         $levelsConfig = [
-            1 => ['role' => UserRole::COORDINADOR_SECTOR->value, 'children_per_parent' => 2],
+            1 => ['role' => UserRole::COORDINADOR_TERRITORIAL->value, 'children_per_parent' => 2],
             2 => ['role' => UserRole::GESTOR_SECCIONAL->value, 'children_per_parent' => 2],
             3 => ['role' => UserRole::PRESIDENTE_COMITE->value, 'children_per_parent' => 2],
             4 => ['role' => UserRole::INTEGRANTE_COMITE->value, 'children_per_parent' => 2],
-            5 => ['role' => UserRole::DESDOBLE->value, 'children_per_parent' => 1],
+            5 => ['role' => UserRole::AFINES->value, 'children_per_parent' => 1],
         ];
 
         $parentsByLevel = [
-            0 => collect([$admin])
+            0 => collect([$admin]),
         ];
 
         foreach ($levelsConfig as $level => $config) {
@@ -59,17 +73,18 @@ class UsersHierarchySeeder extends Seeder
                         'name' => $faker->name,
                         'email' => $faker->unique()->safeEmail,
                         'password' => $password,
-                        'role' => $config['role'],
                         'parent_id' => $parent->id,
                     ]);
+
+                    $user->syncRoles([$config['role']]);
 
                     $parentsByLevel[$level]->push($user);
                 }
             }
-            
-            $this->command->info("Se generaron " . $parentsByLevel[$level]->count() . " usuarios del nivel: {$config['role']}");
+
+            $this->command?->info("Se generaron " . $parentsByLevel[$level]->count() . " usuarios del nivel: {$config['role']}");
         }
-        
-        $this->command->info('Organigrama perfectamente balanceado generado exitosamente.');
+
+        $this->command?->info('Organigrama perfectamente balanceado generado exitosamente.');
     }
 }

@@ -2,10 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Enums\UserRole;
 use App\Enums\ListaNominalPermission;
+use App\Enums\UserRole;
 use App\Models\User;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -17,39 +18,39 @@ class ListaNominalPermissionSeeder extends Seeder
      */
     public function run(): void
     {
-        // Limpa caché interna de permisos de Spatie
+        // Limpia caché interna de permisos de Spatie
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Crea los permiso a partir de los caso de ListaNominalPermission
+        // Crea los permisos a partir de los casos de ListaNominalPermission
         foreach (ListaNominalPermission::cases() as $permission) {
             Permission::firstOrCreate([
-                'name' => $permission->value, 
-                'guard_name' => 'web'
+                'name' => $permission->value,
+                'guard_name' => 'web',
             ]);
         }
 
-        // Matiz de asignación de permisos
+        // Matriz de asignación de permisos usando los 6 roles canónicos
         $rolePermissions = [
             // Administrador: Todos los permisos del módulo
             UserRole::ADMINISTRADOR->value => ListaNominalPermission::values(),
-            
+
             // Roles operativos con permiso únicamente de lectura/visualización
-            UserRole::COORDINADOR_SECTOR->value => [
+            UserRole::COORDINADOR_TERRITORIAL->value => [
                 ListaNominalPermission::VER->value,
             ],
             UserRole::GESTOR_SECCIONAL->value => [
                 ListaNominalPermission::VER->value,
             ],
-            
+
             // Roles inferiores sin permisos sobre el módulo
             UserRole::PRESIDENTE_COMITE->value => [],
             UserRole::INTEGRANTE_COMITE->value => [],
-            UserRole::DESDOBLE->value => [],
+            UserRole::AFINES->value => [],
         ];
 
         $modulePermissions = ListaNominalPermission::values();
 
-        // Crear/Obtener roles y sincronizar únicamente los permisos de lista nominal
+        // Crear/Obtener roles canónicos y sincronizar únicamente los permisos de lista nominal
         foreach ($rolePermissions as $roleName => $permission) {
             $role = Role::firstOrCreate([
                 'name' => $roleName,
@@ -67,10 +68,19 @@ class ListaNominalPermissionSeeder extends Seeder
                 $role->revokePermissionTo($permissionToRevoke);
             }
         }
-        
+
         // Sincronización de rol Spatie para usuarios existentes
-        User::whereNotNull('role')->cursor()->each(function (User $user) {
-            $user->syncRoleWithSpatie();
-        });
+        if (Schema::hasColumn('users', 'role')) {
+            User::whereNotNull('role')->cursor()->each(function (User $user) {
+                $user->syncRoleWithSpatie();
+            });
+        } else {
+            // Si la columna users.role ya fue eliminada, asegurar que ningún usuario quede huérfano sin rol en Spatie
+            User::doesntHave('roles')->cursor()->each(function (User $user) {
+                $user->syncRoles([UserRole::GESTOR_SECCIONAL->value]);
+            });
+        }
+
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
 }

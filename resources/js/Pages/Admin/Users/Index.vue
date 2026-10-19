@@ -276,20 +276,15 @@
                                     </div>
                                 </div>
 
-                                <div class="md:col-span-2 mt-2" v-if="selectedRoleConfig && selectedRoleConfig.parentLevel !== null">
+                                    <div class="md:col-span-2 mt-2">
                                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Jefe Directo Asignado</label>
                                     <select v-model="form.parent_id" class="block w-full bg-slate-950 border border-slate-700 rounded-xl shadow-inner text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm px-4 py-3 transition-colors custom-select appearance-none">
-                                        <option :value="null" class="bg-slate-900 text-slate-400">Selecciona un Jefe Directo</option>
+                                        <option :value="null" class="bg-slate-900 text-slate-400">Sin superior asignado</option>
                                         <option v-for="p in filteredParents" :key="p.id" :value="p.id" class="bg-slate-900">
-                                            {{ p.name }} (Nivel: {{ p.role }})
+                                            {{ p.name }}<span v-if="p.role"> ({{ p.role }})</span>
                                         </option>
                                     </select>
                                     <div v-if="form.errors.parent_id" class="text-red-400 text-xs mt-1 font-bold">{{ form.errors.parent_id }}</div>
-                                </div>
-                                <div class="md:col-span-2 mt-2" v-else>
-                                    <div class="text-sm text-slate-500 italic px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl">
-                                        Este rol no requiere asignar un jefe directo.
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -350,7 +345,8 @@ watch([searchQuery, roleFilter], ([newSearch, newRole]) => {
 const getRoleBadge = (role) => {
     switch (role) {
         case 'Administrador': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-        case 'Coordinador de sector': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+        case 'Coordinador territorial': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+        case 'Afines': return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
         case 'Gestor seccional': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
         case 'Presidente de comité': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
         case 'Integrante de comité': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
@@ -361,7 +357,8 @@ const getRoleBadge = (role) => {
 const getAvatarColor = (role) => {
     switch (role) {
         case 'Administrador': return 'bg-gradient-to-tr from-purple-700 to-purple-500';
-        case 'Coordinador de sector': return 'bg-gradient-to-tr from-blue-700 to-blue-500';
+        case 'Coordinador territorial': return 'bg-gradient-to-tr from-blue-700 to-blue-500';
+        case 'Afines': return 'bg-gradient-to-tr from-cyan-700 to-cyan-500';
         case 'Gestor seccional': return 'bg-gradient-to-tr from-emerald-700 to-emerald-500';
         case 'Presidente de comité': return 'bg-gradient-to-tr from-amber-600 to-amber-400';
         case 'Integrante de comité': return 'bg-gradient-to-tr from-orange-600 to-orange-400';
@@ -389,27 +386,8 @@ const form = useForm({
     parent_id: null
 });
 
-const selectedRoleConfig = computed(() => {
-    return props.roles?.find(r => r.value === form.role);
-});
-
 const filteredParents = computed(() => {
-    if (!selectedRoleConfig.value || selectedRoleConfig.value.parentLevel === null) {
-        return [];
-    }
-    const targetLevel = selectedRoleConfig.value.parentLevel;
-    return props.availableParents.filter(parent => {
-        const pRoleConfig = props.roles?.find(r => r.value === parent.role);
-        return pRoleConfig && pRoleConfig.level === targetLevel && parent.id !== editingId.value;
-    });
-});
-
-// Auto-reset parent_id when role changes and the current parent is no longer valid
-watch(() => form.role, () => {
-    if (form.parent_id) {
-        const isValid = filteredParents.value.some(p => p.id === form.parent_id);
-        if (!isValid) form.parent_id = null;
-    }
+    return (props.availableParents || []).filter(parent => parent.id !== editingId.value);
 });
 
 const openModal = (user = null) => {
@@ -419,15 +397,14 @@ const openModal = (user = null) => {
         editingId.value = user.id;
         form.name = user.name;
         form.email = user.email;
-        form.role = user.role;
+        form.role = user.role || '';
         form.parent_id = user.parent_id;
         form.password = ''; // Siempre vacío al editar por seguridad
     } else {
         isEditing.value = false;
         editingId.value = null;
         form.reset();
-        // default a role que no es admin
-        form.role = 'Gestor seccional';
+        form.role = props.roles?.find(role => role.value === 'Gestor seccional')?.value || props.roles?.[0]?.value || '';
     }
     showModal.value = true;
 };

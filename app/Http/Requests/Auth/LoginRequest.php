@@ -66,22 +66,19 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        // -- REGLA PARA EL PANEL WEB --
         $user = Auth::user();
-        $rolEnum = $user->role;
-
         $allowedRoles = [
-            \App\Enums\UserRole::ADMINISTRADOR,
-            \App\Enums\UserRole::COORDINADOR_SECTOR,
-            \App\Enums\UserRole::GESTOR_SECCIONAL,
-            \App\Enums\UserRole::PRESIDENTE_COMITE
+            \App\Enums\UserRole::ADMINISTRADOR->value,
+            \App\Enums\UserRole::COORDINADOR_TERRITORIAL->value,
+            \App\Enums\UserRole::GESTOR_SECCIONAL->value,
+            \App\Enums\UserRole::PRESIDENTE_COMITE->value,
         ];
 
-        if (!in_array($rolEnum, $allowedRoles)) {
-            Auth::logout(); // Lo sacamos porque no tiene permiso
+        if (! $user->hasAnyRole($allowedRoles)) {
+            Auth::logout();
 
             throw ValidationException::withMessages([
-                'email' => "Acceso denegado al Panel Web. Tu rol es: {$rolEnum->value}",
+                'email' => 'Acceso denegado al Panel Web. Tu cuenta no tiene un rol habilitado.',
             ]);
         }
 

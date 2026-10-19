@@ -33,7 +33,10 @@ class IneRecordController extends Controller
         return Inertia::render('Admin/IneRecords/Index', [
             'records' => $query->latest()->paginate(10)->withQueryString(),
             'filters' => $request->only(['search', 'user_id']),
-            'users' => User::where('role', UserRole::GESTOR_SECCIONAL)->select('id', 'name')->get()
+            'users' => User::whereHas('roles', fn ($query) => $query
+                ->where('roles.name', UserRole::GESTOR_SECCIONAL->value)
+                ->where('roles.guard_name', 'web'))
+                ->select('id', 'name')->get()
         ]);
     }
 
@@ -67,7 +70,7 @@ class IneRecordController extends Controller
     public function destroy(IneRecord $record)
     {
         // Verificamos el rol directamente
-        if (auth()->user()->role !== UserRole::ADMINISTRADOR) {
+        if (! auth()->user()->hasRole(UserRole::ADMINISTRADOR->value)) {
             return back()->with('error', 'No tienes permisos para eliminar expedientes.');
         }
 

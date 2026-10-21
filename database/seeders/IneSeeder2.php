@@ -33,7 +33,7 @@ class IneSeeder2 extends Seeder
         $seccionCodes = $seccionesVictoria->keys()->map(fn($k) => (string)$k)->toArray();
         $userId = \App\Models\User::first()?->id ?? 1;
 
-        for ($i = 0; $i < 700; $i++) {
+        for ($i = 0; $i < 15000; $i++) {
             // Clave de Elector simulada
             $claveElector = strtoupper(
                 $faker->lexify('??????') .

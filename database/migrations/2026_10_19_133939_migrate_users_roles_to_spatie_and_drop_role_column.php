@@ -258,6 +258,14 @@ return new class extends Migration
 
     /**
      * Reverse the migrations.
+     *
+     * Reversión segura:
+     * 1. Restaura los valores originales exactos desde la tabla de respaldo `user_role_migration_backups`
+     *    generada en `up()`, preservando alias históricos ('Supervisor', 'Coordinador de sector', 'Capturista',
+     *    'Desdoble', 'admin', etc.) y roles personalizados.
+     * 2. Si un usuario fue creado después de la migración o su rol cambió en Spatie, asigna su rol actual en Spatie.
+     * 3. Si la tabla de respaldo `user_role_migration_backups` fue eliminada manualmente en producción,
+     *    la distinción entre alias históricos colapsados es irreversible sin un respaldo previo de base de datos.
      */
     public function down(): void
     {

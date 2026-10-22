@@ -199,6 +199,32 @@ class User extends Authenticatable
         return UserRole::tryFrom($normalized) ?? $normalized;
     }
 
+    /**
+     * Obtiene el nombre del rol como cadena plana independientemente de si es un rol canónico (UserRole)
+     * o un rol personalizado de Spatie.
+     */
+    public function getRoleName(): ?string
+    {
+        $role = $this->role;
+
+        if ($role instanceof \BackedEnum) {
+            return $role->value;
+        }
+
+        return is_string($role) && $role !== '' ? $role : null;
+    }
+
+    /**
+     * Obtiene el nivel dentro de la jerarquía organizacional únicamente si el usuario pertenece
+     * a uno de los 6 roles canónicos de UserRole; retorna null para roles personalizados de Spatie.
+     */
+    public function getHierarchyLevel(): ?int
+    {
+        $role = $this->role;
+
+        return $role instanceof UserRole ? $role->level() : null;
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

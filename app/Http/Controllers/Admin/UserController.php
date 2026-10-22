@@ -115,6 +115,21 @@ class UserController extends Controller
             'parent_id' => 'nullable|exists:users,id',
         ]);
 
+        $isCurrentlyAdmin = $user->hasRole(UserRole::ADMINISTRADOR->value)
+            || $user->role === UserRole::ADMINISTRADOR;
+
+        if ($isCurrentlyAdmin && $validated['role'] !== UserRole::ADMINISTRADOR->value) {
+            $remainingAdmins = User::role(UserRole::ADMINISTRADOR->value)
+                ->where('id', '!=', $user->id)
+                ->count();
+
+            if ($remainingAdmins === 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'role' => 'No es posible cambiar el rol del último Administrador del sistema.',
+                ]);
+            }
+        }
+
         $this->validateHierarchy($validated['role'], $validated['parent_id']);
 
         if (!empty($validated['password'])) {
@@ -171,6 +186,22 @@ class UserController extends Controller
         // 1. REGLA DE NEGOCIO: No puedes borrarte a ti mismo
         if ($user->id === auth()->id()) {
             return back()->withErrors(['message' => 'Acción denegada: No puedes eliminar tu propia cuenta mientras tienes la sesión activa.']);
+        }
+
+        // 1b. REGLA DE NEGOCIO: No dejar el sistema sin ningún usuario Administrador
+        $isCurrentlyAdmin = $user->hasRole(UserRole::ADMINISTRADOR->value)
+            || $user->role === UserRole::ADMINISTRADOR;
+
+        if ($isCurrentlyAdmin) {
+            $remainingAdmins = User::role(UserRole::ADMINISTRADOR->value)
+                ->where('id', '!=', $user->id)
+                ->count();
+
+            if ($remainingAdmins === 0) {
+                return back()->withErrors([
+                    'message' => 'Acción denegada: No se puede eliminar al último Administrador del sistema.',
+                ]);
+            }
         }
 
         // 2. REGLA DE NEGOCIO: No borrar si ya capturó INEs

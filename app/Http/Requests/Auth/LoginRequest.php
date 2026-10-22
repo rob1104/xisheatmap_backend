@@ -69,6 +69,9 @@ class LoginRequest extends FormRequest
         // -- REGLA PARA EL PANEL WEB --
         $user = Auth::user();
         $rolEnum = $user->role;
+        $rolName = $rolEnum instanceof \BackedEnum
+            ? $rolEnum->value
+            : (is_string($rolEnum) && $rolEnum !== '' ? $rolEnum : 'Sin rol');
 
         $allowedRoles = [
             \App\Enums\UserRole::ADMINISTRADOR,
@@ -77,11 +80,13 @@ class LoginRequest extends FormRequest
             \App\Enums\UserRole::PRESIDENTE_COMITE
         ];
 
-        if (!in_array($rolEnum, $allowedRoles)) {
+        $hasPanelPermission = is_string($rolEnum) && $user->getAllPermissions()->isNotEmpty();
+
+        if (! in_array($rolEnum, $allowedRoles, true) && ! $hasPanelPermission) {
             Auth::logout(); // Lo sacamos porque no tiene permiso
 
             throw ValidationException::withMessages([
-                'email' => "Acceso denegado al Panel Web. Tu rol es: {$rolEnum->value}",
+                'email' => "Acceso denegado al Panel Web. Tu rol es: {$rolName}",
             ]);
         }
 

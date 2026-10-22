@@ -41,7 +41,11 @@ class SyncController extends Controller
 
         // Validar que el rol corresponda a usuarios de campo (niveles 2 al 5)
         $rolEnum = $user->role;
-        if ($rolEnum === \App\Enums\UserRole::ADMINISTRADOR || $rolEnum === \App\Enums\UserRole::COORDINADOR_SECTOR) {
+        $rolName = $rolEnum instanceof \BackedEnum
+            ? $rolEnum->value
+            : (is_string($rolEnum) && $rolEnum !== '' ? $rolEnum : 'Sin rol');
+
+        if (! ($rolEnum instanceof \App\Enums\UserRole) || $rolEnum === \App\Enums\UserRole::ADMINISTRADOR || $rolEnum === \App\Enums\UserRole::COORDINADOR_SECTOR) {
             activity()
                 ->event('alerta_seguridad')
                 ->withProperties([
@@ -49,11 +53,11 @@ class SyncController extends Controller
                     'ip' => $request->ip(),
                     'dispositivo' => 'App Android',
                     'navegador' => $userAgent,
-                    'razon' => "Acceso denegado a la App. Rol no permitido: {$rolEnum->value}"
+                    'razon' => "Acceso denegado a la App. Rol no permitido: {$rolName}"
                 ])
                 ->log('Intento de inicio de sesión fallido por rol incorrecto');
                 
-            return response()->json(['message' => "Acceso denegado. Tu rol ({$rolEnum->value}) pertenece al panel web, no a la aplicación móvil."], 403);
+            return response()->json(['message' => "Acceso denegado. Tu rol ({$rolName}) pertenece al panel web, no a la aplicación móvil."], 403);
         }
         // --- Extraer información del dispositivo ---
 

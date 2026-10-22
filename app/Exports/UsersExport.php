@@ -57,11 +57,15 @@ class UsersExport implements FromQuery, WithHeadings, WithMapping, WithStyles, S
 
     public function map($user): array
     {
+        $roleName = $user->role instanceof \BackedEnum
+            ? $user->role->value
+            : ($user->role ?? 'Sin rol');
+
         return [
             $user->id,
             $user->name,
             $user->email,
-            $user->role->value ?? $user->role,
+            $roleName,
             $user->parent ? $user->parent->name : 'Sin jefe',
             $user->children_count,
             $user->ines_count,

@@ -107,6 +107,40 @@ return new class extends Migration
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
+        // Rechazar datos históricos desconocidos antes de crear roles canónicos o tocar
+        // asignaciones. Los roles web personalizados ya registrados se conservan.
+        if (Schema::hasColumn('users', 'role')) {
+            $existingRoleNames = array_fill_keys(
+                DB::table($rolesTable)->where('guard_name', 'web')->pluck('name')->all(),
+                true
+            );
+
+            foreach (DB::table('users')->select('id', 'role')->get() as $user) {
+                $rawRole = $user->role !== null ? trim((string) $user->role) : '';
+                if ($this->resolveKnownRole($rawRole) !== null || ($rawRole !== '' && isset($existingRoleNames[$rawRole]))) {
+                    continue;
+                }
+
+                if ($rawRole === '') {
+                    $existingSpatieRole = DB::table($modelHasRolesTable)
+                        ->join($rolesTable, "{$modelHasRolesTable}.{$rolePivotKey}", '=', "{$rolesTable}.id")
+                        ->where("{$modelHasRolesTable}.model_type", User::class)
+                        ->where("{$modelHasRolesTable}.{$modelMorphKey}", $user->id)
+                        ->where("{$rolesTable}.guard_name", 'web')
+                        ->value("{$rolesTable}.name");
+
+                    if ($existingSpatieRole !== null) {
+                        continue;
+                    }
+                }
+
+                $displayValue = $rawRole === '' ? 'NULL/vacío' : "'{$rawRole}'";
+                throw new \RuntimeException(
+                    "Migración abortada para evitar pérdida de datos: el usuario ID {$user->id} tiene un rol desconocido o inválido ({$displayValue})."
+                );
+            }
+        }
+
         // 1. Asegurar roles canónicos en Spatie
         $roleMap = [];
         foreach ($this->canonicalRoles as $name) {

@@ -39,6 +39,17 @@ enum UserRole: string
         ];
     }
 
+    /** @return array<string> Roles con acceso a los módulos generales del panel. */
+    public static function panelRoles(): array
+    {
+        return [
+            self::ADMINISTRADOR->value,
+            self::COORDINADOR_TERRITORIAL->value,
+            self::GESTOR_SECCIONAL->value,
+            self::PRESIDENTE_COMITE->value,
+        ];
+    }
+
     public function level(): int
     {
         return match($this) {

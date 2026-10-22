@@ -7,100 +7,105 @@ use App\Exports\UsersExport;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::with(['roles', 'parent:id,name', 'parent.roles'])
-            ->with(['children' => function ($q) {
-                $q->select('id', 'parent_id', 'name', 'created_at')
-                    ->with('roles')
-                    ->withCount('ines');
-            }])
+        $query = User::with([
+            'roles',
+            'parent.roles',
+            'children' => fn ($query) => $query->with('roles')->withCount('ines'),
+        ])
             ->withCount(['children', 'ines']);
 
-        if ($request->search) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('email', 'like', "%{$request->search}%");
-            });
+        if ($request->filled('search')) {
+            $query->where(fn ($q) => $q
+                ->where('name', 'like', "%{$request->search}%")
+                ->orWhere('email', 'like', "%{$request->search}%"));
         }
 
-        if ($request->role) {
-            $query->role($request->role);
+        if ($request->filled('role')) {
+            $query->whereHas('roles', fn ($q) => $q
+                ->where('roles.name', $request->role)
+                ->where('roles.guard_name', 'web'));
         }
 
         $users = $query->orderBy('name')->paginate(10)->withQueryString();
+        $users->through(fn (User $user) => $this->userPayload($user));
 
-        // En lugar de enviar un availableParents estático, mandamos todos y dejamos que Vue los filtre, 
-        // o mandamos un arreglo con todos los posibles parents con su ID, nombre y rol.
-        $availableParents = User::with('roles')->select('id', 'name')->get();
+        $roles = Role::query()->where('guard_name', 'web')->orderBy('name')->get()
+            ->map(fn (Role $role) => ['value' => $role->name, 'name' => $role->name]);
+
+        $availableParents = User::with('roles')->orderBy('name')->get()
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => $this->roleName($user),
+            ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'users' => $users,
+                'roles' => $roles,
+                'availableParents' => $availableParents,
+            ]);
+        }
 
         return Inertia::render('Admin/Users/Index', [
             'users' => $users,
             'filters' => $request->only(['search', 'role']),
             'availableParents' => $availableParents,
-            'roles' => collect(UserRole::cases())->map(fn($role) => [
-                'value' => $role->value,
-                'name' => $role->value,
-                'level' => $role->level(),
-                'parentLevel' => $role->parentLevel()
-            ])->toArray()
+            'roles' => $roles,
         ]);
     }
 
+    /** Contrato plano: la jerarquía se calcula desde parent_id, no desde el rol del usuario. */
     public function organigrama()
     {
-        // Traemos todos los usuarios (excepto el mismo si se quiere, o todos)
-        // Para el organigrama necesitamos un árbol.
-        // Forma fácil: obtener todos y armar el árbol en Vue, o armarlo aquí.
-        // Vamos a enviar la lista plana con parent_id y que una librería o lógica en Vue la renderice.
-        $users = User::with('roles')
-            ->select('id', 'name', 'parent_id', 'created_at')
-            ->withCount('ines')
-            ->get()
-            ->map(function ($user) {
-                $roleEnum = $user->role instanceof UserRole ? $user->role : null;
-                $roleName = $roleEnum ? $roleEnum->value : (is_string($user->role) ? $user->role : null);
+        $users = User::with('roles')->select('id', 'name', 'parent_id', 'created_at')
+            ->withCount('ines')->get()
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'role' => $this->roleName($user),
+                'parent_id' => $user->parent_id,
+                'ines_count' => $user->ines_count,
+                'created_at' => $user->created_at,
+            ]);
 
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'role' => $roleName,
-                    'level' => $roleEnum?->level(),
-                    'parent_id' => $user->parent_id,
-                    'ines_count' => $user->ines_count,
-                    'created_at' => $user->created_at,
-                ];
-            });
-
-        return Inertia::render('Admin/Users/OrgChart', [
-            'users' => $users
-        ]);
+        return Inertia::render('Admin/Users/OrgChart', ['users' => $users]);
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'      => 'required|string|max:255',
-            'email'     => 'required|string|email|max:255|unique:users',
-            'password'  => 'required|string|min:8',
-            'role'      => ['required', new Enum(UserRole::class)],
-            'parent_id' => 'nullable|exists:users,id',
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'password' => ['required', 'string', 'min:8'],
+            'role' => ['required', 'string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
+            'parent_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
-        $this->validateHierarchy($validated['role'], $validated['parent_id']);
+        $this->validateParent($validated['parent_id'] ?? null);
 
-        $validated['password'] = Hash::make($validated['password']);
-
-        User::create($validated);
+        DB::transaction(function () use ($validated): void {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'parent_id' => $validated['parent_id'] ?? null,
+            ]);
+            $user->syncRoles([$this->webRole($validated['role'])]);
+        });
 
         return back()->with('success', 'Usuario creado exitosamente.');
     }
@@ -108,113 +113,70 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name'      => 'required|string|max:255',
-            'email'     => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'password'  => 'nullable|string|min:8',
-            'role'      => ['required', new Enum(UserRole::class)],
-            'parent_id' => 'nullable|exists:users,id',
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'password' => ['nullable', 'string', 'min:8'],
+            'role' => ['required', 'string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
+            'parent_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
-        $isCurrentlyAdmin = $user->hasRole(UserRole::ADMINISTRADOR->value)
-            || $user->role === UserRole::ADMINISTRADOR;
+        $parentId = $validated['parent_id'] ?? null;
+        $this->validateParent($parentId, $user);
 
-        if ($isCurrentlyAdmin && $validated['role'] !== UserRole::ADMINISTRADOR->value) {
-            $remainingAdmins = User::role(UserRole::ADMINISTRADOR->value)
-                ->where('id', '!=', $user->id)
-                ->count();
+        DB::transaction(function () use ($validated, $user, $parentId): void {
+            $user->refresh();
+            $isAdmin = $user->hasRole(UserRole::ADMINISTRADOR->value);
+            $isRemovingAdmin = $isAdmin && $validated['role'] !== UserRole::ADMINISTRADOR->value;
 
-            if ($remainingAdmins === 0) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'role' => 'No es posible cambiar el rol del último Administrador del sistema.',
+            if ($isRemovingAdmin && $this->adminCountForUpdate() <= 1) {
+                throw ValidationException::withMessages([
+                    'role' => 'No puedes revocar el rol del último Administrador del sistema.',
                 ]);
             }
-        }
 
-        $this->validateHierarchy($validated['role'], $validated['parent_id']);
+            $attributes = [
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'parent_id' => $parentId,
+            ];
+            if (! empty($validated['password'])) {
+                $attributes['password'] = Hash::make($validated['password']);
+            }
 
-        if (!empty($validated['password'])) {
-            $validated['password'] = Hash::make($validated['password']);
-        } else {
-            unset($validated['password']);
-        }
-
-        $user->update($validated);
+            $user->update($attributes);
+            $user->syncRoles([$this->webRole($validated['role'])]);
+        });
 
         return back()->with('success', 'Usuario actualizado correctamente.');
     }
 
-    private function validateHierarchy(string $roleValue, ?int $parentId): void
-    {
-        $role = UserRole::from($roleValue);
-        $expectedParentLevel = $role->parentLevel();
-
-        if ($expectedParentLevel === null) {
-            if ($parentId !== null) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'parent_id' => "El rol {$role->value} no debe tener un superior asignado."
-                ]);
-            }
-            return;
-        }
-
-        if ($parentId === null) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'parent_id' => "El rol {$role->value} requiere tener un superior asignado."
-            ]);
-        }
-
-        $parent = User::find($parentId);
-        if (!$parent) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'parent_id' => "El superior seleccionado no existe."
-            ]);
-        }
-
-        $parentRole = $parent->role instanceof UserRole
-            ? $parent->role
-            : (is_string($parent->role) ? UserRole::tryFrom($parent->role) : null);
-
-        if ($parentRole?->level() !== $expectedParentLevel) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'parent_id' => "El superior de un {$role->value} debe ser de nivel inmediato superior."
-            ]);
-        }
-    }
-
     public function destroy(User $user)
     {
-        // 1. REGLA DE NEGOCIO: No puedes borrarte a ti mismo
         if ($user->id === auth()->id()) {
-            return back()->withErrors(['message' => 'Acción denegada: No puedes eliminar tu propia cuenta mientras tienes la sesión activa.']);
+            return back()->withErrors(['message' => 'No puedes eliminar tu propia cuenta mientras tienes la sesión activa.']);
         }
 
-        // 1b. REGLA DE NEGOCIO: No dejar el sistema sin ningún usuario Administrador
-        $isCurrentlyAdmin = $user->hasRole(UserRole::ADMINISTRADOR->value)
-            || $user->role === UserRole::ADMINISTRADOR;
-
-        if ($isCurrentlyAdmin) {
-            $remainingAdmins = User::role(UserRole::ADMINISTRADOR->value)
-                ->where('id', '!=', $user->id)
-                ->count();
-
-            if ($remainingAdmins === 0) {
-                return back()->withErrors([
-                    'message' => 'Acción denegada: No se puede eliminar al último Administrador del sistema.',
-                ]);
-            }
-        }
-
-        // 2. REGLA DE NEGOCIO: No borrar si ya capturó INEs
-        if ($user->ines()->count() > 0) {
+        if ($user->ines()->exists()) {
             return back()->withErrors(['message' => 'No se puede eliminar a este usuario porque ya tiene capturas registradas.']);
         }
 
-        // 3. REGLA DE NEGOCIO: No borrar si tiene gente a su cargo
-        if ($user->children()->count() > 0) {
-            return back()->withErrors(['message' => 'No se puede eliminar porque tiene brigadistas a su cargo. Reasígnalos primero.']);
+        if ($user->children()->exists()) {
+            return back()->withErrors(['message' => 'No se puede eliminar porque tiene personas a su cargo. Reasígnalas primero.']);
         }
 
-        $user->delete();
+        $deleted = DB::transaction(function () use ($user): bool {
+            $user->refresh();
+            if ($user->hasRole(UserRole::ADMINISTRADOR->value) && $this->adminCountForUpdate() <= 1) {
+                return false;
+            }
+
+            $user->delete();
+            return true;
+        });
+
+        if (! $deleted) {
+            return back()->withErrors(['message' => 'No es posible eliminar al último Administrador del sistema.']);
+        }
 
         return back()->with('success', 'Usuario eliminado correctamente.');
     }
@@ -226,23 +188,94 @@ class UserController extends Controller
 
     public function exportPdf(Request $request)
     {
-        $query = User::with(['roles', 'parent:id,name', 'parent.roles'])->withCount(['children', 'ines']);
-
-        if ($request->search) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('email', 'like', "%{$request->search}%");
-            });
-        }
-
-        if ($request->role) {
-            $query->role($request->role);
-        }
-
+        $query = User::with(['parent.roles', 'roles'])->withCount(['children', 'ines']);
+        $this->applyFilters($query, $request);
         $users = $query->orderBy('name')->get();
-        $filters = $request->only(['search', 'role']);
 
-        $pdf = Pdf::loadView('admin.users.pdf', compact('users', 'filters'));
-        return $pdf->download('catalogo_cuentas.pdf');
+        return Pdf::loadView('admin.users.pdf', [
+            'users' => $users,
+            'filters' => $request->only(['search', 'role']),
+        ])->download('catalogo_cuentas.pdf');
+    }
+
+    private function applyFilters($query, Request $request): void
+    {
+        if ($request->filled('search')) {
+            $query->where(fn ($q) => $q
+                ->where('name', 'like', "%{$request->search}%")
+                ->orWhere('email', 'like', "%{$request->search}%"));
+        }
+        if ($request->filled('role')) {
+            $query->whereHas('roles', fn ($q) => $q
+                ->where('roles.name', $request->role)
+                ->where('roles.guard_name', 'web'));
+        }
+    }
+
+    private function validateParent(?int $parentId, ?User $user = null): void
+    {
+        if ($parentId === null) {
+            return;
+        }
+
+        if ($user && $parentId === $user->id) {
+            throw ValidationException::withMessages(['parent_id' => 'Un usuario no puede ser su propio superior.']);
+        }
+
+        if (! $user) {
+            return;
+        }
+
+        $visited = [];
+        $currentId = $parentId;
+        while ($currentId !== null && ! isset($visited[$currentId])) {
+            if ($currentId === $user->id) {
+                throw ValidationException::withMessages(['parent_id' => 'La asignación crearía un ciclo en la jerarquía.']);
+            }
+            $visited[$currentId] = true;
+            $currentId = User::whereKey($currentId)->value('parent_id');
+        }
+    }
+
+    private function webRole(string $name): Role
+    {
+        return Role::query()->where('guard_name', 'web')->where('name', $name)->firstOrFail();
+    }
+
+    private function adminCountForUpdate(): int
+    {
+        Role::query()
+            ->where('guard_name', 'web')
+            ->where('name', UserRole::ADMINISTRADOR->value)
+            ->lockForUpdate()
+            ->first();
+
+        return User::role(UserRole::ADMINISTRADOR->value)->count();
+    }
+
+    private function roleName(User $user): ?string
+    {
+        return $user->roles->first()?->name;
+    }
+
+    private function userPayload(User $user): array
+    {
+        $payload = $user->toArray();
+        unset($payload['roles']);
+        $payload['role'] = $this->roleName($user);
+        $payload['parent'] = $user->parent ? [
+            'id' => $user->parent->id,
+            'name' => $user->parent->name,
+            'role' => $this->roleName($user->parent),
+        ] : null;
+        $payload['children'] = $user->children->map(fn (User $child) => [
+            'id' => $child->id,
+            'name' => $child->name,
+            'role' => $this->roleName($child),
+            'created_at' => $child->created_at,
+            'ines_count' => $child->ines_count,
+        ])->all();
+
+        return $payload;
     }
 }

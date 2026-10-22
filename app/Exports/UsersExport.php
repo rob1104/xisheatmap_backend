@@ -24,7 +24,7 @@ class UsersExport implements FromQuery, WithHeadings, WithMapping, WithStyles, S
 
     public function query()
     {
-        $query = User::with(['roles', 'parent:id,name', 'parent.roles'])
+        $query = User::with(['roles', 'parent.roles'])
             ->withCount(['children', 'ines']);
 
         if ($this->search) {
@@ -35,7 +35,9 @@ class UsersExport implements FromQuery, WithHeadings, WithMapping, WithStyles, S
         }
 
         if ($this->role) {
-            $query->role($this->role);
+            $query->whereHas('roles', fn ($roles) => $roles
+                ->where('roles.name', $this->role)
+                ->where('roles.guard_name', 'web'));
         }
 
         return $query->orderBy('name');
@@ -57,15 +59,11 @@ class UsersExport implements FromQuery, WithHeadings, WithMapping, WithStyles, S
 
     public function map($user): array
     {
-        $roleName = $user->role instanceof \BackedEnum
-            ? $user->role->value
-            : ($user->role ?? 'Sin rol');
-
         return [
             $user->id,
             $user->name,
             $user->email,
-            $roleName,
+            $user->roles->first()?->name ?? '',
             $user->parent ? $user->parent->name : 'Sin jefe',
             $user->children_count,
             $user->ines_count,

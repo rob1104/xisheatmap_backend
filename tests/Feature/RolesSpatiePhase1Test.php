@@ -105,6 +105,9 @@ class RolesSpatiePhase1Test extends TestCase
             'updated_at' => now(),
         ]);
 
+        $rolesBefore = DB::table('roles')->orderBy('id')->get()->toArray();
+        $assignmentsBefore = DB::table('model_has_roles')->orderBy('model_id')->get()->toArray();
+
         try {
             $migration->up();
             $this->fail('La migración debió abortar al encontrar un rol desconocido.');
@@ -123,6 +126,8 @@ class RolesSpatiePhase1Test extends TestCase
             'model_type' => User::class,
             'model_id'   => $unknownUserId,
         ]);
+        $this->assertEquals($rolesBefore, DB::table('roles')->orderBy('id')->get()->toArray());
+        $this->assertEquals($assignmentsBefore, DB::table('model_has_roles')->orderBy('model_id')->get()->toArray());
     }
 
     /**

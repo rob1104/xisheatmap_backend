@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use App\Enums\UserRole;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -64,7 +65,6 @@ class CreateAdminCommand extends Command
             }
 
             $user->name = $name ?: $user->name;
-            $user->role = 'Administrador';
             if ($password) {
                 $user->password = Hash::make($password);
             }
@@ -72,6 +72,7 @@ class CreateAdminCommand extends Command
                 $user->email_verified_at = now();
             }
             $user->save();
+            $user->syncRoles([UserRole::ADMINISTRADOR->value]);
 
             $this->components->info('Usuario actualizado exitosamente con permisos de Administrador.');
             $this->mostrarResumen($user);
@@ -101,10 +102,10 @@ class CreateAdminCommand extends Command
             'name' => $name,
             'email' => $email,
             'password' => Hash::make($password),
-            'role' => 'Administrador',
         ]);
         $admin->email_verified_at = now();
         $admin->save();
+        $admin->syncRoles([UserRole::ADMINISTRADOR->value]);
 
         $this->newLine();
         $this->components->info('¡Administrador creado exitosamente!');

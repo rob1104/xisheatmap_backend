@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
+use App\Enums\ListaNominalPermission;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -223,6 +224,35 @@ class User extends Authenticatable
         $role = $this->role;
 
         return $role instanceof UserRole ? $role->level() : null;
+    }
+
+    /** Roles operativos, no permisos puntuales, abren los módulos generales del panel. */
+    public function hasFullPanelAccess(): bool
+    {
+        return $this->hasAnyRole(UserRole::panelRoles());
+    }
+
+    /** Primer módulo autorizado para usuarios que solo entran por permisos. */
+    public function panelHomeRoute(): ?string
+    {
+        if ($this->hasFullPanelAccess()) {
+            return 'dashboard';
+        }
+
+        if ($this->can('viewAny', Role::class)) {
+            return 'roles.index';
+        }
+
+        if ($this->can(ListaNominalPermission::VER->value)) {
+            return 'lista-nominal.index';
+        }
+
+        return null;
+    }
+
+    public function canAccessPanel(): bool
+    {
+        return $this->panelHomeRoute() !== null;
     }
 
     public function getActivitylogOptions(): LogOptions

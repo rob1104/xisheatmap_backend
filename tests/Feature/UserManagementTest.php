@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -119,6 +121,48 @@ class UserManagementTest extends TestCase
 
         $customUser = User::factory()->create(['role' => 'Rol personalizado']);
         $this->actingAs($customUser)->get(route('usuarios.index'))->assertForbidden();
+    }
+
+    public function test_organigrama_contract_exposes_hierarchy_by_parent_id_without_role_level(): void
+    {
+        $this->withoutVite();
+        $child = User::factory()->create(['role' => 'Rol personalizado', 'parent_id' => $this->admin->id]);
+
+        $this->actingAs($this->admin)
+            ->get(route('usuarios.organigrama'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Users/OrgChart')
+                ->has('users', 2)
+                ->where('users', fn ($users) => collect($users)->every(
+                    fn ($user) => array_keys($user) === ['id', 'name', 'role', 'parent_id', 'ines_count', 'created_at']
+                ))
+                ->where('users', fn ($users) => collect($users)->firstWhere('id', $child->id)['parent_id'] === $this->admin->id
+                    && collect($users)->firstWhere('id', $child->id)['role'] === 'Rol personalizado'));
+    }
+
+    public function test_dashboard_en_campo_counts_only_field_roles(): void
+    {
+        $this->withoutVite();
+        User::factory()->create(['role' => UserRole::COORDINADOR_TERRITORIAL->value]);
+        $customUser = User::factory()->create(['role' => 'Rol personalizado']);
+        $apiFieldRole = Role::firstOrCreate([
+            'name' => UserRole::GESTOR_SECCIONAL->value,
+            'guard_name' => 'api',
+        ]);
+        DB::table('model_has_roles')->insert([
+            'role_id' => $apiFieldRole->id,
+            'model_type' => User::class,
+            'model_id' => $customUser->id,
+        ]);
+        foreach (UserRole::fieldRoles() as $fieldRole) {
+            User::factory()->create(['role' => $fieldRole]);
+        }
+
+        $this->actingAs($this->admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('kpis.en_campo', count(UserRole::fieldRoles())));
     }
 
     private function userData(User $user, ?int $parentId, string $role = UserRole::AFINES->value): array

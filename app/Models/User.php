@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
+use App\Enums\ListaNominalPermission;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -12,6 +13,10 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Activitylog\ActivityLogger;
+use Spatie\Activitylog\ActivityLogStatus;
+use Spatie\Activitylog\Contracts\LoggablePipe;
+use Spatie\Activitylog\EventLogBag;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Permission\Models\Role;
@@ -22,13 +27,29 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable, LogsActivity, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, LogsActivity, HasRoles {
+        HasRoles::syncRoles as protected spatieSyncRoles;
+        HasRoles::assignRole as protected spatieAssignRole;
+    }
+
+    /**
+     * Incluir el atributo virtual 'role' en la serialización a array/JSON (Inertia, API, exportaciones).
+     *
+     * @var list<string>
+     */
+    protected $appends = ['role'];
 
     /**
      * Rol temporal en memoria para sincronizar con Spatie tras guardar el modelo.
      */
     protected ?string $pendingSpatieRole = null;
     protected bool $hasPendingSpatieRole = false;
+    protected ?string $previousSpatieRole = null;
+    protected bool $hasCapturedPreviousRole = false;
+    protected bool $roleChangeLoggedInCycle = false;
+    protected bool $isCreatingModel = false;
+    protected bool $isInternalRoleSync = false;
+    protected static bool $roleAuditPipeRegistered = false;
 
     /**
      * Get the attributes that should be cast.
@@ -64,6 +85,36 @@ class User extends Authenticatable
     }
 
     /**
+     * Verifica que las tablas requeridas de Spatie Permission existan en la base de datos.
+     */
+    public static function hasSpatiePermissionTables(): bool
+    {
+        $rolesTable = config('permission.table_names.roles', 'roles');
+        $modelHasRolesTable = config('permission.table_names.model_has_roles', 'model_has_roles');
+
+        return Schema::hasTable($rolesTable) && Schema::hasTable($modelHasRolesTable);
+    }
+
+    /**
+     * Obtiene el nombre del rol actual en Spatie (normalizado) directamente o desde la relación.
+     */
+    public function getCurrentSpatieRoleName(): ?string
+    {
+        if ($this->exists && static::hasSpatiePermissionTables()) {
+            $roleName = $this->roles()->first()?->name;
+            if ($roleName !== null) {
+                return $this->normalizeRoleName($roleName);
+            }
+        }
+
+        if (array_key_exists('role', $this->attributes) && $this->attributes['role'] !== null) {
+            return $this->normalizeRoleName($this->attributes['role']);
+        }
+
+        return null;
+    }
+
+    /**
      * Obtiene el rol del usuario teniendo a Spatie Permission como fuente única de verdad.
      * Si el rol coincide con un caso de UserRole, retorna la instancia del Enum para compatibilidad;
      * si es un rol personalizado en Spatie, retorna el nombre del rol.
@@ -74,7 +125,7 @@ class User extends Authenticatable
             return $this->resolveRoleValue($this->pendingSpatieRole);
         }
 
-        if (Schema::hasTable(config('permission.table_names.roles', 'roles'))) {
+        if ($this->exists && static::hasSpatiePermissionTables()) {
             $spatieRoleName = $this->roles->first()?->name;
             if ($spatieRoleName !== null) {
                 return $this->resolveRoleValue($spatieRoleName);
@@ -94,6 +145,11 @@ class User extends Authenticatable
      */
     public function setRoleAttribute($value): void
     {
+        if (! $this->hasCapturedPreviousRole) {
+            $this->previousSpatieRole = $this->exists ? $this->getCurrentSpatieRoleName() : null;
+            $this->hasCapturedPreviousRole = true;
+        }
+
         $normalized = $this->normalizeRoleName($value);
         $this->pendingSpatieRole = $normalized;
         $this->hasPendingSpatieRole = true;
@@ -111,17 +167,22 @@ class User extends Authenticatable
             return null;
         }
 
-        $roleName = $value instanceof \BackedEnum ? $value->value : (string) $value;
+        $roleName = $value instanceof \BackedEnum ? $value->value : trim((string) $value);
+        if ($roleName === '') {
+            return null;
+        }
 
         return match ($roleName) {
-            'Administrador', 'administrador', 'admin'           => UserRole::ADMINISTRADOR->value,
-            'Coordinador territorial',
-            'Coordinador de sector', 'Supervisor', 'supervisor' => UserRole::COORDINADOR_TERRITORIAL->value,
-            'Gestor seccional', 'Capturista', 'capturista'      => UserRole::GESTOR_SECCIONAL->value,
-            'Presidente de comité'                              => UserRole::PRESIDENTE_COMITE->value,
-            'Integrante de comité'                              => UserRole::INTEGRANTE_COMITE->value,
-            'Afines', 'Desdoble'                                => UserRole::AFINES->value,
-            default                                             => $roleName,
+            'Administrador', 'administrador', 'admin'            => UserRole::ADMINISTRADOR->value,
+            'Coordinador territorial', 'coordinador territorial',
+            'Coordinador de sector', 'coordinador de sector',
+            'Supervisor', 'supervisor'                           => UserRole::COORDINADOR_TERRITORIAL->value,
+            'Gestor seccional', 'gestor seccional',
+            'Capturista', 'capturista'                           => UserRole::GESTOR_SECCIONAL->value,
+            'Presidente de comité', 'presidente de comité'       => UserRole::PRESIDENTE_COMITE->value,
+            'Integrante de comité', 'integrante de comité'       => UserRole::INTEGRANTE_COMITE->value,
+            'Afines', 'afines', 'Desdoble', 'desdoble'           => UserRole::AFINES->value,
+            default                                              => $roleName,
         };
     }
 
@@ -132,14 +193,72 @@ class User extends Authenticatable
         }
 
         $normalized = $this->normalizeRoleName($roleName);
+        if ($normalized === null) {
+            return null;
+        }
 
         return UserRole::tryFrom($normalized) ?? $normalized;
+    }
+
+    /**
+     * Obtiene el nombre del rol como cadena plana independientemente de si es un rol canónico (UserRole)
+     * o un rol personalizado de Spatie.
+     */
+    public function getRoleName(): ?string
+    {
+        $role = $this->role;
+
+        if ($role instanceof \BackedEnum) {
+            return $role->value;
+        }
+
+        return is_string($role) && $role !== '' ? $role : null;
+    }
+
+    /**
+     * Obtiene el nivel dentro de la jerarquía organizacional únicamente si el usuario pertenece
+     * a uno de los 6 roles canónicos de UserRole; retorna null para roles personalizados de Spatie.
+     */
+    public function getHierarchyLevel(): ?int
+    {
+        $role = $this->role;
+
+        return $role instanceof UserRole ? $role->level() : null;
+    }
+
+    /** Roles operativos, no permisos puntuales, abren los módulos generales del panel. */
+    public function hasFullPanelAccess(): bool
+    {
+        return $this->hasAnyRole(UserRole::panelRoles());
+    }
+
+    /** Primer módulo autorizado para usuarios que solo entran por permisos. */
+    public function panelHomeRoute(): ?string
+    {
+        if ($this->hasFullPanelAccess()) {
+            return 'dashboard';
+        }
+
+        if ($this->can('viewAny', Role::class)) {
+            return 'roles.index';
+        }
+
+        if ($this->can(ListaNominalPermission::VER->value)) {
+            return 'lista-nominal.index';
+        }
+
+        return null;
+    }
+
+    public function canAccessPanel(): bool
+    {
+        return $this->panelHomeRoute() !== null;
     }
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'parent_id', 'updated_at'])
+            ->logOnly(['name', 'email', 'role', 'parent_id', 'updated_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn(string $eventName) => "Usuario {$eventName}");
@@ -147,7 +266,30 @@ class User extends Authenticatable
 
     protected static function booted(): void
     {
+        if (! static::$roleAuditPipeRegistered) {
+            static::addLogChange(new class implements LoggablePipe
+            {
+                public function handle(EventLogBag $event, \Closure $next): EventLogBag
+                {
+                    if ($event->model instanceof User) {
+                        $event->changes = $event->model->adjustRoleActivityChanges($event->event, $event->changes);
+                    }
+
+                    return $next($event);
+                }
+            });
+            static::$roleAuditPipeRegistered = true;
+        }
+
         static::saving(function (User $user) {
+            $user->roleChangeLoggedInCycle = false;
+            $user->isCreatingModel = ! $user->exists;
+
+            if (! $user->hasCapturedPreviousRole) {
+                $user->previousSpatieRole = $user->exists ? $user->getCurrentSpatieRoleName() : null;
+                $user->hasCapturedPreviousRole = true;
+            }
+
             if (array_key_exists('role', $user->attributes) && ! Schema::hasColumn($user->getTable(), 'role')) {
                 $user->pendingSpatieRole = $user->normalizeRoleName($user->attributes['role']);
                 $user->hasPendingSpatieRole = true;
@@ -158,17 +300,98 @@ class User extends Authenticatable
         static::saved(function (User $user) {
             if ($user->hasPendingSpatieRole) {
                 $user->syncRoleWithSpatie($user->pendingSpatieRole);
-                $user->hasPendingSpatieRole = false;
-                $user->pendingSpatieRole = null;
             }
+
+            $user->hasPendingSpatieRole = false;
+            $user->pendingSpatieRole = null;
+            $user->previousSpatieRole = null;
+            $user->hasCapturedPreviousRole = false;
+            $user->roleChangeLoggedInCycle = false;
+            $user->isCreatingModel = false;
         });
+    }
+
+    /**
+     * Ajusta los atributos de auditoría de Spatie Activitylog para que el rol
+     * se registre como string plano y refleje cambios reales entre el rol anterior y el nuevo.
+     */
+    public function adjustRoleActivityChanges(string $eventName, array $changes): array
+    {
+        $newRole = $this->hasPendingSpatieRole
+            ? $this->pendingSpatieRole
+            : $this->getCurrentSpatieRoleName();
+
+        if ($eventName === 'created') {
+            if ($newRole !== null) {
+                $changes['attributes']['role'] = $newRole;
+            } else {
+                unset($changes['attributes']['role']);
+            }
+            $this->roleChangeLoggedInCycle = true;
+
+            return $changes;
+        }
+
+        if ($eventName === 'updated') {
+            $oldRole = $this->hasCapturedPreviousRole ? $this->previousSpatieRole : $this->getCurrentSpatieRoleName();
+
+            if ($oldRole !== $newRole) {
+                $changes['attributes']['role'] = $newRole;
+                $changes['old']['role'] = $oldRole;
+                $this->roleChangeLoggedInCycle = true;
+            } else {
+                unset($changes['attributes']['role'], $changes['old']['role']);
+            }
+
+            return $changes;
+        }
+
+        if (isset($changes['attributes']['role']) && $changes['attributes']['role'] instanceof \BackedEnum) {
+            $changes['attributes']['role'] = $changes['attributes']['role']->value;
+        }
+        if (isset($changes['old']['role']) && $changes['old']['role'] instanceof \BackedEnum) {
+            $changes['old']['role'] = $changes['old']['role']->value;
+        }
+
+        return $changes;
+    }
+
+    protected function logRoleChangeActivity(?string $oldRole, ?string $newRole): void
+    {
+        if ($oldRole === $newRole) {
+            return;
+        }
+
+        $activityTable = config('activitylog.table_name', 'activity_log');
+        if (! Schema::hasTable($activityTable)) {
+            return;
+        }
+
+        $logStatus = app(ActivityLogStatus::class);
+        if (! $this->enableLoggingModelsEvents || $logStatus->disabled()) {
+            return;
+        }
+
+        app(ActivityLogger::class)
+            ->useLog($this->getLogNameToUse())
+            ->event('updated')
+            ->performedOn($this)
+            ->withProperties([
+                'attributes' => ['role' => $newRole],
+                'old'        => ['role' => $oldRole],
+            ])
+            ->log('Usuario updated');
     }
 
     public function syncRoleWithSpatie(?string $roleName = null): void
     {
-        if (! Schema::hasTable(config('permission.table_names.roles', 'roles'))) {
+        if (! static::hasSpatiePermissionTables()) {
             return;
         }
+
+        $oldRole = $this->hasCapturedPreviousRole
+            ? $this->previousSpatieRole
+            : ($this->exists ? $this->getCurrentSpatieRoleName() : null);
 
         $targetRole = $roleName;
 
@@ -182,20 +405,67 @@ class User extends Authenticatable
 
         $targetRole = $this->normalizeRoleName($targetRole);
 
-        if (empty($targetRole)) {
-            if (! $this->wasRecentlyCreated && $this->roles()->exists()) {
-                $this->syncRoles([]);
-                $this->unsetRelation('roles');
+        $this->isInternalRoleSync = true;
+        try {
+            if (empty($targetRole)) {
+                if (! $this->isCreatingModel && $this->roles()->exists()) {
+                    $this->spatieSyncRoles([]);
+                    $this->unsetRelation('roles');
+
+                    if ($this->exists && ! $this->roleChangeLoggedInCycle) {
+                        $this->logRoleChangeActivity($oldRole, null);
+                    }
+                }
+                return;
             }
-            return;
+
+            $role = Role::firstOrCreate([
+                'name'       => $targetRole,
+                'guard_name' => 'web',
+            ]);
+
+            $this->spatieSyncRoles([$role]);
+            $this->unsetRelation('roles');
+
+            if ($this->exists && ! $this->isCreatingModel && ! $this->roleChangeLoggedInCycle && $oldRole !== $targetRole) {
+                $this->logRoleChangeActivity($oldRole, $targetRole);
+            }
+        } finally {
+            $this->isInternalRoleSync = false;
+        }
+    }
+
+    public function syncRoles(...$roles)
+    {
+        $oldRole = (! $this->isInternalRoleSync && $this->exists) ? $this->getCurrentSpatieRoleName() : null;
+
+        $result = $this->spatieSyncRoles(...$roles);
+        $this->unsetRelation('roles');
+
+        if (! $this->isInternalRoleSync && $this->exists && ! $this->isCreatingModel && ! $this->roleChangeLoggedInCycle) {
+            $newRole = $this->getCurrentSpatieRoleName();
+            if ($oldRole !== $newRole) {
+                $this->logRoleChangeActivity($oldRole, $newRole);
+            }
         }
 
-        $role = Role::firstOrCreate([
-            'name' => $targetRole,
-            'guard_name' => 'web',
-        ]);
+        return $result;
+    }
 
-        $this->syncRoles([$role]);
+    public function assignRole(...$roles)
+    {
+        $oldRole = (! $this->isInternalRoleSync && $this->exists) ? $this->getCurrentSpatieRoleName() : null;
+
+        $result = $this->spatieAssignRole(...$roles);
         $this->unsetRelation('roles');
+
+        if (! $this->isInternalRoleSync && $this->exists && ! $this->isCreatingModel && ! $this->roleChangeLoggedInCycle) {
+            $newRole = $this->getCurrentSpatieRoleName();
+            if ($oldRole !== $newRole) {
+                $this->logRoleChangeActivity($oldRole, $newRole);
+            }
+        }
+
+        return $result;
     }
 }

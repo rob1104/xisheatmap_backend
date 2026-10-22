@@ -67,14 +67,8 @@ class LoginRequest extends FormRequest
         }
 
         $user = Auth::user();
-        $allowedRoles = [
-            \App\Enums\UserRole::ADMINISTRADOR->value,
-            \App\Enums\UserRole::COORDINADOR_TERRITORIAL->value,
-            \App\Enums\UserRole::GESTOR_SECCIONAL->value,
-            \App\Enums\UserRole::PRESIDENTE_COMITE->value,
-        ];
 
-        if (! $user->hasAnyRole($allowedRoles)) {
+        if (! $user->canAccessPanel()) {
             Auth::logout();
 
             throw ValidationException::withMessages([

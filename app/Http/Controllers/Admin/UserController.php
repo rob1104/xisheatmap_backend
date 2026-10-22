@@ -68,6 +68,7 @@ class UserController extends Controller
         ]);
     }
 
+    /** Contrato plano: la jerarquía se calcula desde parent_id, no desde el rol del usuario. */
     public function organigrama()
     {
         $users = User::with('roles')->select('id', 'name', 'parent_id', 'created_at')

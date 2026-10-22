@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\RolePermission;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -154,6 +155,16 @@ class RoleController extends Controller
 
         $validated = $request->validate($rules);
 
+        // El rol Administrador nunca puede quedarse sin el permiso roles.gestionar
+        if ($role->name === UserRole::ADMINISTRADOR->value && array_key_exists('permissions', $validated)) {
+            $requestedPermissions = $validated['permissions'] ?? [];
+            if (! in_array(RolePermission::GESTIONAR->value, $requestedPermissions, true)) {
+                return back()->withErrors([
+                    'permissions' => "No se puede retirar el permiso '" . RolePermission::GESTIONAR->value . "' del rol Administrador.",
+                ]);
+            }
+        }
+
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         if (! $isProtected && isset($validated['name'])) {
@@ -163,7 +174,11 @@ class RoleController extends Controller
         }
 
         if (array_key_exists('permissions', $validated)) {
-            $role->syncPermissions($validated['permissions'] ?? []);
+            $permissionsToSync = $validated['permissions'] ?? [];
+            if ($role->name === UserRole::ADMINISTRADOR->value && ! in_array(RolePermission::GESTIONAR->value, $permissionsToSync, true)) {
+                $permissionsToSync[] = RolePermission::GESTIONAR->value;
+            }
+            $role->syncPermissions($permissionsToSync);
         }
 
         app()[PermissionRegistrar::class]->forgetCachedPermissions();

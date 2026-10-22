@@ -42,6 +42,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $userPayload,
                 'roles' => $user ? $user->getRoleNames()->values()->all() : [],
                 'permissions' => $user ? $user->getAllPermissions()->pluck('name')->values()->all() : [],
+                'full_panel_access' => $user ? $user->hasFullPanelAccess() : false,
             ],
         ];
     }

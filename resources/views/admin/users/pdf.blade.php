@@ -101,7 +101,7 @@
                     <span style="color: #64748b; font-size: 9px;">{{ $user->email }}</span>
                 </td>
                 <td>
-                    <span class="role-badge">{{ $user->role->value ?? $user->role }}</span>
+                    <span class="role-badge">{{ $user->role instanceof \BackedEnum ? $user->role->value : ($user->role ?? 'Sin rol') }}</span>
                 </td>
                 <td>
                     @if($user->parent)

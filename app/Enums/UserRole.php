@@ -23,6 +23,22 @@ enum UserRole: string
         return array_column(self::cases(), 'value');
     }
 
+    /**
+     * Roles operativos de campo correspondientes a los niveles jerárquicos 2 al 5.
+     * Excluye roles de administración/coordinación (niveles 0 y 1) y cualquier rol personalizado.
+     *
+     * @return array<string>
+     */
+    public static function fieldRoles(): array
+    {
+        return [
+            self::GESTOR_SECCIONAL->value,
+            self::PRESIDENTE_COMITE->value,
+            self::INTEGRANTE_COMITE->value,
+            self::AFINES->value,
+        ];
+    }
+
     public function level(): int
     {
         return match($this) {

@@ -212,4 +212,123 @@ class RoleManagementTest extends TestCase
         $response->assertSessionHasNoErrors();
         $this->assertDatabaseMissing('roles', ['id' => $customRole->id]);
     }
+
+    public function test_administrador_role_cannot_have_roles_gestionar_permission_removed(): void
+    {
+        $adminRole = Role::where('name', UserRole::ADMINISTRADOR->value)->firstOrFail();
+
+        // 1. Intentar guardar Administrador con arreglo vacío de permisos -> debe rechazarse
+        $responseEmpty = $this->actingAs($this->admin)
+            ->put(route('roles.update', $adminRole->id), [
+                'name'        => UserRole::ADMINISTRADOR->value,
+                'permissions' => [],
+            ]);
+
+        $responseEmpty->assertSessionHasErrors(['permissions']);
+        $this->assertTrue($adminRole->fresh()->hasPermissionTo(RolePermission::GESTIONAR->value));
+
+        // 2. Intentar guardar Administrador sin roles.gestionar -> debe rechazarse
+        $responseWithoutGestionar = $this->actingAs($this->admin)
+            ->put(route('roles.update', $adminRole->id), [
+                'name'        => UserRole::ADMINISTRADOR->value,
+                'permissions' => [ListaNominalPermission::VER->value],
+            ]);
+
+        $responseWithoutGestionar->assertSessionHasErrors(['permissions']);
+        $this->assertTrue($adminRole->fresh()->hasPermissionTo(RolePermission::GESTIONAR->value));
+
+        // 3. Guardar Administrador incluyendo roles.gestionar -> debe permitirse
+        $responseValid = $this->actingAs($this->admin)
+            ->put(route('roles.update', $adminRole->id), [
+                'name'        => UserRole::ADMINISTRADOR->value,
+                'permissions' => [
+                    RolePermission::GESTIONAR->value,
+                    ListaNominalPermission::VER->value,
+                ],
+            ]);
+
+        $responseValid->assertSessionHasNoErrors();
+        $this->assertTrue($adminRole->fresh()->hasPermissionTo(RolePermission::GESTIONAR->value));
+        $this->assertTrue($adminRole->fresh()->hasPermissionTo(ListaNominalPermission::VER->value));
+    }
+
+    public function test_cannot_remove_or_demote_the_last_administrador_user(): void
+    {
+        // Actualmente $this->admin es el único Administrador
+        $this->assertEquals(1, User::role(UserRole::ADMINISTRADOR->value)->count());
+
+        // 1. Intentar cambiar el rol del único Administrador -> debe fallar con error en 'role'
+        $responseDemoteLast = $this->actingAs($this->admin)
+            ->put(route('usuarios.update', $this->admin->id), [
+                'name'      => $this->admin->name,
+                'email'     => $this->admin->email,
+                'role'      => UserRole::COORDINADOR_TERRITORIAL->value,
+                'parent_id' => null,
+            ]);
+
+        $responseDemoteLast->assertSessionHasErrors(['role']);
+        $this->assertTrue($this->admin->fresh()->hasRole(UserRole::ADMINISTRADOR->value));
+
+        // 2. Crear un segundo Administrador -> ahora sí se puede cambiar el rol de uno de ellos
+        $secondAdmin = User::factory()->create([
+            'role'      => UserRole::ADMINISTRADOR->value,
+            'parent_id' => null,
+        ]);
+
+        $this->assertEquals(2, User::role(UserRole::ADMINISTRADOR->value)->count());
+
+        $responseDemoteSecond = $this->actingAs($this->admin)
+            ->put(route('usuarios.update', $secondAdmin->id), [
+                'name'      => $secondAdmin->name,
+                'email'     => $secondAdmin->email,
+                'role'      => UserRole::COORDINADOR_TERRITORIAL->value,
+                'parent_id' => $this->admin->id,
+            ]);
+
+        $responseDemoteSecond->assertSessionHasNoErrors();
+        $this->assertTrue($secondAdmin->fresh()->hasRole(UserRole::COORDINADOR_TERRITORIAL->value));
+        $this->assertEquals(1, User::role(UserRole::ADMINISTRADOR->value)->count());
+    }
+
+    public function test_custom_spatie_role_compatibility_and_dashboard_en_campo_metric(): void
+    {
+        // Crear rol personalizado con permiso de visualización
+        $customRole = Role::create(['name' => 'Analista Electoral', 'guard_name' => 'web']);
+        $customRole->givePermissionTo(RolePermission::VER->value);
+
+        $customUser = User::factory()->create(['role' => 'Analista Electoral']);
+
+        // 1. Validar que el rol personalizado devuelve string y nivel jerárquico null
+        $this->assertSame('Analista Electoral', $customUser->fresh()->role);
+        $this->assertSame('Analista Electoral', $customUser->fresh()->getRoleName());
+        $this->assertNull($customUser->fresh()->getHierarchyLevel());
+
+        // 2. Crear usuarios de la jerarquía organizacional
+        $coordinador = User::factory()->create([
+            'role'      => UserRole::COORDINADOR_TERRITORIAL,
+            'parent_id' => $this->admin->id,
+        ]);
+        $gestor = User::factory()->create([
+            'role'      => UserRole::GESTOR_SECCIONAL,
+            'parent_id' => $coordinador->id,
+        ]);
+        $presidente = User::factory()->create([
+            'role'      => UserRole::PRESIDENTE_COMITE,
+            'parent_id' => $gestor->id,
+        ]);
+
+        // 3. Organigrama funciona sin errores con usuarios con rol personalizado en la BD
+        $this->actingAs($this->admin)
+            ->get(route('usuarios.organigrama'))
+            ->assertStatus(200);
+
+        // 4. Dashboard calcula en_campo contando únicamente roles de campo (Gestor y Presidente = 2),
+        // excluyendo Administrador, Coordinador territorial y el rol personalizado 'Analista Electoral'
+        $expectedFieldCount = User::whereHas('roles', fn ($q) => $q->whereIn('name', UserRole::fieldRoles()))->count();
+        $this->assertEquals(2, $expectedFieldCount);
+
+        $this->actingAs($this->admin)
+            ->get(route('dashboard'))
+            ->assertStatus(200);
+    }
 }

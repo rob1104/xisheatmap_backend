@@ -217,7 +217,8 @@
                                                     type="checkbox"
                                                     :value="perm.name"
                                                     v-model="form.permissions"
-                                                    class="h-4 w-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
+                                                    :disabled="isEditing && editingRole?.name === 'Administrador' && perm.name === 'roles.gestionar'"
+                                                    class="h-4 w-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                                 />
                                                 <span class="text-xs font-semibold text-slate-200">{{ perm.name }}</span>
                                             </label>
@@ -321,6 +322,10 @@ const selectAllPermissions = () => {
 };
 
 const clearAllPermissions = () => {
+    if (isEditing.value && editingRole.value?.name === 'Administrador') {
+        form.permissions = ['roles.gestionar'];
+        return;
+    }
     form.permissions = [];
 };
 

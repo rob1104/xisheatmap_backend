@@ -39,8 +39,10 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
             // 2. Registros de hoy (usando Carbon para la fecha actual)
             'capturas_hoy' => IneRecord::whereDate('created_at', Carbon::today())->count(),
 
-            // 3. Usuarios con el rol de brigadista
-            'en_campo' => User::where('role', 'brigadista')->count(),
+            // 3. Usuarios con el rol de Gestor seccional (brigadistas en campo)
+            'en_campo' => User::hasSpatiePermissionTables()
+                ? User::whereHas('roles', fn($q) => $q->where('name', \App\Enums\UserRole::GESTOR_SECCIONAL->value))->count()
+                : 0,
 
             // 4. Total de tarjetas generadas
             'tarjetas' => TarjetaDescuento::count(),

@@ -5,28 +5,15 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
-use App\Enums\UserRole;
 
 class CheckAdminAccess
 {
-    /**
-     * Handle an incoming request.
-     */
     public function handle(Request $request, Closure $next): Response
     {
-        // Administrador, Coordinador de sector, Gestor seccional y Presidente de comité pueden acceder
-        $rolesPermitidos = [
-            UserRole::ADMINISTRADOR,
-            UserRole::COORDINADOR_SECTOR,
-            UserRole::GESTOR_SECCIONAL,
-            UserRole::PRESIDENTE_COMITE
-        ];
+        $user = $request->user();
 
-        if (auth()->check() && !in_array(auth()->user()->role, $rolesPermitidos)) {
-            $rolName = auth()->user()->role instanceof UserRole
-                ? auth()->user()->role->value
-                : (auth()->user()->role?->value ?? (auth()->user()->role ?? 'Sin rol'));
-            abort(403, 'Acceso restringido. Tu rol actual es: ' . $rolName);
+        if ($user && ! $user->canAccessPanel()) {
+            abort(403, 'Acceso restringido. Tu cuenta no tiene un rol habilitado para el panel.');
         }
 
         return $next($request);

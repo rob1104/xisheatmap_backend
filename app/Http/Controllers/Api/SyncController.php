@@ -37,11 +37,15 @@ class SyncController extends Controller
             return response()->json(['message' => 'Credenciales incorrectas'], 401);
         }
 
-        $token = $user->createToken('quasar_app')->plainTextToken;
+        $roleName = $user->getRoleNames()->first();
+        $mobileRoles = [
+            \App\Enums\UserRole::GESTOR_SECCIONAL->value,
+            \App\Enums\UserRole::PRESIDENTE_COMITE->value,
+            \App\Enums\UserRole::INTEGRANTE_COMITE->value,
+            \App\Enums\UserRole::AFINES->value,
+        ];
 
-        // Validar que el rol corresponda a usuarios de campo (niveles 2 al 5)
-        $rolEnum = $user->role;
-        if ($rolEnum === \App\Enums\UserRole::ADMINISTRADOR || $rolEnum === \App\Enums\UserRole::COORDINADOR_SECTOR) {
+        if (! $user->hasAnyRole($mobileRoles)) {
             activity()
                 ->event('alerta_seguridad')
                 ->withProperties([
@@ -49,12 +53,14 @@ class SyncController extends Controller
                     'ip' => $request->ip(),
                     'dispositivo' => 'App Android',
                     'navegador' => $userAgent,
-                    'razon' => "Acceso denegado a la App. Rol no permitido: {$rolEnum->value}"
+                    'razon' => "Acceso denegado a la App. Rol no permitido: {$roleName}"
                 ])
                 ->log('Intento de inicio de sesión fallido por rol incorrecto');
                 
-            return response()->json(['message' => "Acceso denegado. Tu rol ({$rolEnum->value}) pertenece al panel web, no a la aplicación móvil."], 403);
+            return response()->json(['message' => "Acceso denegado. Tu rol ({$roleName}) no está habilitado para la aplicación móvil."], 403);
         }
+
+        $token = $user->createToken('quasar_app')->plainTextToken;
         // --- Extraer información del dispositivo ---
 
         // Expresión regular sencilla para detectar si es un dispositivo móvil
@@ -75,7 +81,7 @@ class SyncController extends Controller
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
-                'role' => $user->role,
+                'role' => $roleName,
                 'parent_id' => $user->parent_id
             ]
         ]);

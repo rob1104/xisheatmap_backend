@@ -1,16 +1,19 @@
 <?php
 
 use App\Enums\ListaNominalPermission;
+use App\Enums\UserRole;
 use App\Http\Controllers\Admin\ApoyoController;
 use App\Http\Controllers\Admin\HeatMapController;
 use App\Http\Controllers\Admin\IneRecordController;
 use App\Http\Controllers\Admin\TarjetaController;
+use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\Admin\ListaNominalCorteController;
 use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Middleware\CheckAdminAccess;
+use App\Http\Middleware\EnsureFullPanelAccess;
 use App\Mail\TarjetaDescuentoEnviada;
 use App\Models\IneRecord;
 use App\Models\TarjetaDescuento;
@@ -28,6 +31,9 @@ Route::get('/', function () {
 // Grupo principal protegido con Auth, Verified y nuestro nuevo CheckAdminAccess
 Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
 
+    // Módulos generales disponibles para los roles operativos.
+    Route::middleware(EnsureFullPanelAccess::class)->group(function () {
+
     // ---------------------------------------------------
     // VISTAS DEL PANEL DE CONTROL (ADMIN / SUPERVISOR)
     // ---------------------------------------------------
@@ -39,8 +45,12 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
             // 2. Registros de hoy (usando Carbon para la fecha actual)
             'capturas_hoy' => IneRecord::whereDate('created_at', Carbon::today())->count(),
 
-            // 3. Usuarios con el rol de brigadista
-            'en_campo' => User::where('role', 'brigadista')->count(),
+            // 3. Usuarios con roles operativos de campo (niveles jerárquicos 2 al 5)
+            'en_campo' => User::hasSpatiePermissionTables()
+                ? User::whereHas('roles', fn ($q) => $q
+                    ->where('guard_name', 'web')
+                    ->whereIn('name', UserRole::fieldRoles()))->count()
+                : 0,
 
             // 4. Total de tarjetas generadas
             'tarjetas' => TarjetaDescuento::count(),
@@ -76,6 +86,11 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
 
     Route::resource('casas-mesil', \App\Http\Controllers\Admin\CasaMesilController::class)->except(['create', 'show', 'edit']);
 
+    // Rutas auxiliares del panel general.
+    Route::get('/rastreo-brigadistas', [TrackingController::class, 'obtenerActivos'])->name('rastreo-brigadistas');
+    Route::get('/spatial/secciones-geojson', [\App\Http\Controllers\Api\SpatialController::class, 'seccionesGeoJson'])->name('spatial.secciones-geojson');
+    });
+
     // ---------------------------------------------------
     // RUTAS DE PERFIL (Generadas por Breeze)
     // ---------------------------------------------------
@@ -83,9 +98,8 @@ Route::middleware(['auth', CheckAdminAccess::class])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // El mapa web consulta (GET) - Esta es la que pegamos en tu Vue hace rato
-    Route::get('/rastreo-brigadistas', [TrackingController::class, 'obtenerActivos'])->name('rastreo-brigadistas');
-    Route::get('/spatial/secciones-geojson', [\App\Http\Controllers\Api\SpatialController::class, 'seccionesGeoJson'])->name('spatial.secciones-geojson');
+    // Módulo de roles: RolePolicy aplica autorización por permiso.
+    Route::resource('roles', RoleController::class)->except(['show', 'create', 'edit']);
 
     // ---------------------------------------------------
     // MÓDULO DE LISTA NOMINAL (CORTES Y DETALLES)

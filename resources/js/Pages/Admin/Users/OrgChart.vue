@@ -55,22 +55,53 @@ const props = defineProps({
 const isExporting = ref(false);
 const chartContainer = ref(null);
 
-// Construir el árbol a partir de la lista plana
+// Construir el árbol a partir de la lista plana.
+// La jerarquía depende solo de parent_id: la profundidad (depth) se calcula aquí
+// y no del rol del sistema, para que los roles personalizados se ubiquen igual.
 const tree = computed(() => {
     const userMap = {};
-    const roots = [];
+    const childrenOf = {};
 
     // Inicializar nodos
     props.users.forEach(user => {
-        userMap[user.id] = { ...user, children: [] };
+        userMap[user.id] = { ...user, depth: 0, children: [] };
+        childrenOf[user.id] = [];
     });
 
-    // Anidar hijos
+    // Raíces: sin superior o con un superior que no viene en la lista
+    const roots = [];
     props.users.forEach(user => {
         if (user.parent_id && userMap[user.parent_id]) {
-            userMap[user.parent_id].children.push(userMap[user.id]);
+            childrenOf[user.parent_id].push(userMap[user.id]);
         } else {
             roots.push(userMap[user.id]);
+        }
+    });
+
+    // Recorrido en anchura desde las raíces asignando la profundidad
+    const visited = new Set();
+    const attach = (root) => {
+        const queue = [root];
+        visited.add(root.id);
+        while (queue.length) {
+            const node = queue.shift();
+            childrenOf[node.id].forEach(child => {
+                if (visited.has(child.id)) return;
+                visited.add(child.id);
+                child.depth = node.depth + 1;
+                node.children.push(child);
+                queue.push(child);
+            });
+        }
+    };
+    roots.forEach(attach);
+
+    // Usuarios atrapados en un ciclo de parent_id (datos heredados): se muestran como
+    // raíz para no perderlos ni provocar una recursión infinita en OrgNode
+    props.users.forEach(user => {
+        if (!visited.has(user.id)) {
+            roots.push(userMap[user.id]);
+            attach(userMap[user.id]);
         }
     });
 

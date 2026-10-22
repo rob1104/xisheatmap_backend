@@ -5,21 +5,60 @@ namespace App\Enums;
 enum UserRole: string
 {
     case ADMINISTRADOR = 'Administrador';
-    case COORDINADOR_SECTOR = 'Coordinador de sector';
+    case COORDINADOR_TERRITORIAL = 'Coordinador territorial';
     case GESTOR_SECCIONAL = 'Gestor seccional';
     case PRESIDENTE_COMITE = 'Presidente de comité';
     case INTEGRANTE_COMITE = 'Integrante de comité';
-    case DESDOBLE = 'Desdoble';
+    case AFINES = 'Afines';
+
+    // Alias de compatibilidad temporal para referencias previas
+    public const COORDINADOR_SECTOR = self::COORDINADOR_TERRITORIAL;
+    public const DESDOBLE = self::AFINES;
+
+    /**
+     * @return array<string>
+     */
+    public static function values(): array
+    {
+        return array_column(self::cases(), 'value');
+    }
+
+    /**
+     * Roles operativos de campo correspondientes a los niveles jerárquicos 2 al 5.
+     * Excluye roles de administración/coordinación (niveles 0 y 1) y cualquier rol personalizado.
+     *
+     * @return array<string>
+     */
+    public static function fieldRoles(): array
+    {
+        return [
+            self::GESTOR_SECCIONAL->value,
+            self::PRESIDENTE_COMITE->value,
+            self::INTEGRANTE_COMITE->value,
+            self::AFINES->value,
+        ];
+    }
+
+    /** @return array<string> Roles con acceso a los módulos generales del panel. */
+    public static function panelRoles(): array
+    {
+        return [
+            self::ADMINISTRADOR->value,
+            self::COORDINADOR_TERRITORIAL->value,
+            self::GESTOR_SECCIONAL->value,
+            self::PRESIDENTE_COMITE->value,
+        ];
+    }
 
     public function level(): int
     {
         return match($this) {
             self::ADMINISTRADOR => 0,
-            self::COORDINADOR_SECTOR => 1,
+            self::COORDINADOR_TERRITORIAL => 1,
             self::GESTOR_SECCIONAL => 2,
             self::PRESIDENTE_COMITE => 3,
             self::INTEGRANTE_COMITE => 4,
-            self::DESDOBLE => 5,
+            self::AFINES => 5,
         };
     }
 

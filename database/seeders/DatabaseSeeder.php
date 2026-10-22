@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -15,16 +16,22 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Inicializar roles canónicos y permisos de Spatie
+        $this->call([
+            ListaNominalPermissionSeeder::class,
+        ]);
+
         // Usuario inicial de prueba solo en entornos de desarrollo/pruebas (idempotente)
         if (app()->environment('local', 'testing')) {
-            User::firstOrCreate(
+            $admin = User::firstOrCreate(
                 ['email' => 'test@example.com'],
                 [
                     'name' => 'Test User',
                     'password' => bcrypt('password'),
-                    'role' => 'Administrador',
                 ]
             );
+
+            $admin->syncRoles([UserRole::ADMINISTRADOR->value]);
         }
 
         // Carga de las 170 secciones electorales de Ciudad Victoria (INE)

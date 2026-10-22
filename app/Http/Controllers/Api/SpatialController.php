@@ -40,8 +40,7 @@ class SpatialController extends Controller
     public function auditSummary(Request $request)
     {
         $user = $request->user();
-        $role = $user?->role instanceof \BackedEnum ? $user->role->value : $user?->role;
-        if (!$user || $role !== 'Administrador') {
+        if (! $user || ! $user->hasRole(\App\Enums\UserRole::ADMINISTRADOR->value)) {
             return response()->json(['message' => 'No autorizado para consultar la auditoría territorial.'], 403);
         }
 

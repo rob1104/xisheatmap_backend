@@ -18,9 +18,11 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::with('parent:id,name,role')
+        $query = User::with(['roles', 'parent:id,name', 'parent.roles'])
             ->with(['children' => function ($q) {
-                $q->select('id', 'parent_id', 'name', 'role', 'created_at')->withCount('ines');
+                $q->select('id', 'parent_id', 'name', 'created_at')
+                    ->with('roles')
+                    ->withCount('ines');
             }])
             ->withCount(['children', 'ines']);
 
@@ -32,14 +34,14 @@ class UserController extends Controller
         }
 
         if ($request->role) {
-            $query->where('role', $request->role);
+            $query->role($request->role);
         }
 
-        $users = $query->orderBy('role')->orderBy('name')->paginate(10)->withQueryString();
+        $users = $query->orderBy('name')->paginate(10)->withQueryString();
 
         // En lugar de enviar un availableParents estático, mandamos todos y dejamos que Vue los filtre, 
         // o mandamos un arreglo con todos los posibles parents con su ID, nombre y rol.
-        $availableParents = User::select('id', 'name', 'role')->get();
+        $availableParents = User::with('roles')->select('id', 'name')->get();
 
         return Inertia::render('Admin/Users/Index', [
             'users' => $users,
@@ -60,15 +62,19 @@ class UserController extends Controller
         // Para el organigrama necesitamos un árbol.
         // Forma fácil: obtener todos y armar el árbol en Vue, o armarlo aquí.
         // Vamos a enviar la lista plana con parent_id y que una librería o lógica en Vue la renderice.
-        $users = User::select('id', 'name', 'role', 'parent_id', 'created_at')
+        $users = User::with('roles')
+            ->select('id', 'name', 'parent_id', 'created_at')
             ->withCount('ines')
             ->get()
             ->map(function ($user) {
+                $roleEnum = $user->role instanceof UserRole ? $user->role : null;
+                $roleName = $roleEnum ? $roleEnum->value : (is_string($user->role) ? $user->role : null);
+
                 return [
                     'id' => $user->id,
                     'name' => $user->name,
-                    'role' => $user->role->value,
-                    'level' => $user->role->level(),
+                    'role' => $roleName,
+                    'level' => $roleEnum?->level(),
                     'parent_id' => $user->parent_id,
                     'ines_count' => $user->ines_count,
                     'created_at' => $user->created_at,
@@ -149,7 +155,11 @@ class UserController extends Controller
             ]);
         }
 
-        if ($parent->role->level() !== $expectedParentLevel) {
+        $parentRole = $parent->role instanceof UserRole
+            ? $parent->role
+            : (is_string($parent->role) ? UserRole::tryFrom($parent->role) : null);
+
+        if ($parentRole?->level() !== $expectedParentLevel) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'parent_id' => "El superior de un {$role->value} debe ser de nivel inmediato superior."
             ]);
@@ -185,7 +195,7 @@ class UserController extends Controller
 
     public function exportPdf(Request $request)
     {
-        $query = User::with('parent:id,name,role')->withCount(['children', 'ines']);
+        $query = User::with(['roles', 'parent:id,name', 'parent.roles'])->withCount(['children', 'ines']);
 
         if ($request->search) {
             $query->where(function ($q) use ($request) {
@@ -195,10 +205,10 @@ class UserController extends Controller
         }
 
         if ($request->role) {
-            $query->where('role', $request->role);
+            $query->role($request->role);
         }
 
-        $users = $query->orderBy('role')->orderBy('name')->get();
+        $users = $query->orderBy('name')->get();
         $filters = $request->only(['search', 'role']);
 
         $pdf = Pdf::loadView('admin.users.pdf', compact('users', 'filters'));

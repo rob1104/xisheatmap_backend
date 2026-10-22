@@ -33,7 +33,7 @@ class IneRecordController extends Controller
         return Inertia::render('Admin/IneRecords/Index', [
             'records' => $query->latest()->paginate(10)->withQueryString(),
             'filters' => $request->only(['search', 'user_id']),
-            'users' => User::where('role', UserRole::GESTOR_SECCIONAL)->select('id', 'name')->get()
+            'users' => User::role(UserRole::GESTOR_SECCIONAL->value)->select('id', 'name')->get()
         ]);
     }
 

@@ -18,6 +18,10 @@ class ListaNominalPermissionSeeder extends Seeder
      */
     public function run(): void
     {
+        if (! User::hasSpatiePermissionTables()) {
+            throw new \RuntimeException('Las tablas de Spatie Permission no existen. Ejecuta las migraciones antes del seeder.');
+        }
+
         // Limpia caché interna de permisos de Spatie
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
@@ -69,15 +73,10 @@ class ListaNominalPermissionSeeder extends Seeder
             }
         }
 
-        // Sincronización de rol Spatie para usuarios existentes
+        // Sincronización de rol Spatie para usuarios existentes únicamente si aún existe la columna física
         if (Schema::hasColumn('users', 'role')) {
             User::whereNotNull('role')->cursor()->each(function (User $user) {
                 $user->syncRoleWithSpatie();
-            });
-        } else {
-            // Si la columna users.role ya fue eliminada, asegurar que ningún usuario quede huérfano sin rol en Spatie
-            User::doesntHave('roles')->cursor()->each(function (User $user) {
-                $user->syncRoles([UserRole::GESTOR_SECCIONAL->value]);
             });
         }
 

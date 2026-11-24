@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
         // Inicializar roles canónicos y permisos de Spatie
         $this->call([
             ListaNominalPermissionSeeder::class,
+            ParticipacionPermissionSeeder::class,
         ]);
 
         // Usuario inicial de prueba solo en entornos de desarrollo/pruebas (idempotente)

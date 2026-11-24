@@ -5,12 +5,16 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
 use App\Enums\ListaNominalPermission;
+use App\Enums\ParticipacionPermission;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\ActivityLogger;
@@ -77,6 +81,52 @@ class User extends Authenticatable
     public function ines()
     {
         return $this->hasMany(IneRecord::class, 'user_id');
+    }
+
+    public function seccionesElectorales(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SeccionElectoral::class,
+            'user_secciones',
+            'user_id',
+            'seccion_electoral_id'
+        )->withTimestamps();
+    }
+
+    public function devices(): HasMany
+    {
+        return $this->hasMany(UserDevice::class, 'user_id');
+    }
+
+    /**
+     * IDs de secciones electorales asignadas territorialmente al usuario.
+     *
+     * @return list<int>
+     */
+    public function assignedSeccionIds(): array
+    {
+        if ($this->relationLoaded('seccionesElectorales')) {
+            return $this->seccionesElectorales
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        return $this->seccionesElectorales()
+            ->pluck('secciones_electorales.id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    public function canAccessSeccion(int $seccionElectoralId): bool
+    {
+        if ($this->hasRole(UserRole::ADMINISTRADOR->value)) {
+            return true;
+        }
+
+        return in_array($seccionElectoralId, $this->assignedSeccionIds(), true);
     }
 
     public function allChildren()
@@ -245,6 +295,14 @@ class User extends Authenticatable
 
         if ($this->can(ListaNominalPermission::VER->value)) {
             return 'lista-nominal.index';
+        }
+
+        if (
+            Route::has('participacion.index')
+            && ($this->can(ParticipacionPermission::VER->value)
+                || $this->can(ParticipacionPermission::ATENDER_SOLICITUDES->value))
+        ) {
+            return 'participacion.index';
         }
 
         return null;

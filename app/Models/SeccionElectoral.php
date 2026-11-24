@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
@@ -117,5 +118,25 @@ class SeccionElectoral extends Model
     {
         return $this->hasOne(ListaNominalDetalle::class,'seccion_electoral_id')
             ->whereRelation('corte','is_active', true);
+    }
+
+    public function usuarios(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'user_secciones',
+            'seccion_electoral_id',
+            'user_id'
+        )->withTimestamps();
+    }
+
+    public function ciudadanos(): HasMany
+    {
+        return $this->hasMany(Ciudadano::class, 'seccion_electoral_id');
+    }
+
+    public function interaccionesParticipacion(): HasMany
+    {
+        return $this->hasMany(InteraccionParticipacion::class, 'seccion_folio_id');
     }
 }

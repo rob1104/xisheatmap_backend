@@ -3,6 +3,12 @@
 use App\Http\Controllers\Admini\TrackingController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\SpatialController;
+use App\Http\Controllers\Api\V1\DeviceTokenController;
+use App\Http\Controllers\Api\V1\JornadaController;
+use App\Http\Controllers\Api\V1\PadronSyncController;
+use App\Http\Controllers\Api\V1\ParticipacionController;
+use App\Http\Controllers\Api\V1\SolicitudLogisticaController;
+use App\Http\Middleware\EnsureMobileFieldRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +34,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/locate-point', [SpatialController::class, 'locatePoint']);
         Route::get('/audit-summary', [SpatialController::class, 'auditSummary']);
     });
+
+    // API v1 — Módulo de Participación Ciudadana y Gestión Logística (roles móviles de campo)
+    Route::prefix('v1')
+        ->middleware(EnsureMobileFieldRole::class)
+        ->group(function () {
+            Route::post('/devices/token', [DeviceTokenController::class, 'store']);
+            Route::delete('/devices/token', [DeviceTokenController::class, 'destroy']);
+
+            Route::get('/jornadas/activa', [JornadaController::class, 'activa']);
+            Route::get('/padron/sync', [PadronSyncController::class, 'index']);
+            Route::post('/participacion', [ParticipacionController::class, 'store']);
+
+            Route::get('/solicitudes', [SolicitudLogisticaController::class, 'index']);
+            Route::patch('/solicitudes/{solicitud}/estatus', [SolicitudLogisticaController::class, 'updateEstatus']);
+        });
 });
 
 
